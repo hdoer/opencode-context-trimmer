@@ -1,0 +1,7 @@
+# dependencies (opencode installs plugins via Bun into its own cache)
+node_modules/
+bun.lockb
+
+# logs / os cruft
+*.log
+.DS_Store

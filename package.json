@@ -1,0 +1,46 @@
+{
+  "name": "opencode-context-trimmer",
+  "version": "0.1.0",
+  "description": "An opencode plugin that trims upstream conversation context on long sessions to cut token cost, with a cache-aware gate and on-disk config.",
+  "type": "module",
+  "license": "MIT",
+  "author": "hdoer <james.hdoer@gmail.com>",
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "context",
+    "trimming",
+    "token",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hdoer/opencode-context-trimmer.git"
+  },
+  "homepage": "https://github.com/hdoer/opencode-context-trimmer#readme",
+  "bugs": {
+    "url": "https://github.com/hdoer/opencode-context-trimmer/issues"
+  },
+  "exports": {
+    ".": "./context-trimmer.ts"
+  },
+  "main": "./context-trimmer.ts",
+  "files": [
+    "context-trimmer.ts",
+    "context-trimmer",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*",
+    "@opencode-ai/sdk": "*"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.18.21",
+    "@opencode-ai/sdk": "^1.18.22"
+  },
+  "scripts": {
+    "test": "bun run context-trimmer/config.test.ts && bun run context-trimmer/strategies/turn-window.test.ts && bun run context-trimmer/tools/recall.test.ts"
+  }
+}
