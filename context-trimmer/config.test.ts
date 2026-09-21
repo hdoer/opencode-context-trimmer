@@ -10,19 +10,23 @@ function assert(cond: unknown, msg: string): asserts cond {
 
 // 1) Defaults are sane and complete.
 assert(DEFAULT_CONFIG.enabled === true, "default enabled=true")
-assert(DEFAULT_CONFIG.threshold === 10, "default threshold=10")
-assert(DEFAULT_CONFIG.recentFullTurns === 3, "default recentFullTurns=3")
-assert(DEFAULT_CONFIG.priorTrimmedTurns === 2, "default priorTrimmedTurns=2")
+assert(DEFAULT_CONFIG.threshold === 20, "default threshold=20")
+assert(DEFAULT_CONFIG.recentFullTurns === 5, "default recentFullTurns=5")
+assert(DEFAULT_CONFIG.priorTrimmedTurns === 5, "default priorTrimmedTurns=5")
 assert(DEFAULT_CONFIG.cacheAwareMinutes === 5, "default cacheAwareMinutes=5 (cache-protected)")
+assert(DEFAULT_CONFIG.breadcrumbUserMessages === 100, "default breadcrumbUserMessages=100")
+assert(DEFAULT_CONFIG.breadcrumbMaxTokens === 100, "default breadcrumbMaxTokens=100")
 
 // 2) normalize: a valid object passes through.
 {
-  const cfg = normalize({ enabled: false, threshold: 30, recentFullTurns: 8, priorTrimmedTurns: 3, cacheAwareMinutes: 5 })
+  const cfg = normalize({ enabled: false, threshold: 30, recentFullTurns: 8, priorTrimmedTurns: 3, cacheAwareMinutes: 5, breadcrumbUserMessages: 50, breadcrumbMaxTokens: 40 })
   assert(cfg.enabled === false, "enabled false honored")
   assert(cfg.threshold === 30, "threshold honored")
   assert(cfg.recentFullTurns === 8, "recentFullTurns honored")
   assert(cfg.priorTrimmedTurns === 3, "priorTrimmedTurns honored")
   assert(cfg.cacheAwareMinutes === 5, "cacheAwareMinutes honored")
+  assert(cfg.breadcrumbUserMessages === 50, "breadcrumbUserMessages honored")
+  assert(cfg.breadcrumbMaxTokens === 40, "breadcrumbMaxTokens honored")
 }
 
 // 3) normalize: non-objects and null fall back to defaults.

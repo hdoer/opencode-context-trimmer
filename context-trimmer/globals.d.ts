@@ -7,6 +7,10 @@ declare const process: {
   exit(code?: number): never
 }
 
+declare class TextEncoder {
+  encode(input?: string): Uint8Array
+}
+
 declare module "node:fs" {
   export function readFileSync(path: string, encoding: string): string
   export function statSync(path: string): { mtimeMs: number }

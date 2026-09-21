@@ -24,6 +24,8 @@ export const strategies: readonly Strategy[] = [
       recentFullTurns: cfg.recentFullTurns,
       priorTrimmedTurns: cfg.priorTrimmedTurns,
       cacheAwareMinutes: cfg.cacheAwareMinutes,
+      breadcrumbUserMessages: cfg.breadcrumbUserMessages,
+      breadcrumbMaxTokens: cfg.breadcrumbMaxTokens,
     }
   }),
 ]

@@ -160,6 +160,69 @@ function convo(n: number): ChatMessage[] {
   assertEq(userIds(out)[0], "u11", "gate disabled: triggers immediately regardless of idle")
 }
 
+// ---------- Test 8: breadcrumbs preserve recent dropped user messages ----------
+{
+  // Build a convo where dropped user messages carry distinctive text.
+  function userText(id: string, text: string): ChatMessage {
+    return { info: { id, role: "user" } as any, parts: [{ id: id + "-t", type: "text", text } as any] }
+  }
+  const msgs: ChatMessage[] = []
+  for (let i = 1; i <= 21; i++) {
+    msgs.push(userText("u" + i, "message number " + i))
+    msgs.push(assistantWithTools("a" + i))
+  }
+  // keepTurns=10 -> boundary at c-10 = u11; turns u1..u10 dropped.
+  // maxTokens=4 -> ~14 byte budget; "message number" is 14 bytes, next space overflows.
+  const strat = turnWindow({
+    threshold: 20,
+    recentFullTurns: 5,
+    priorTrimmedTurns: 5,
+    breadcrumbUserMessages: 3,
+    breadcrumbMaxTokens: 4,
+    notice: "N",
+  })
+  const out = strat.apply(msgs, { sessionID: "bc" } as any)
+  const noticeText = (out[0].parts[0] as any).text as string
+  // Only the 3 most recent dropped users (u8,u9,u10), each truncated at the budget.
+  assert(noticeText.includes("message number …"), "breadcrumb truncated at token budget with ellipsis")
+  assert(!noticeText.includes("number 7"), "only the most recent 3 dropped users kept (u7 excluded)")
+  assert(noticeText.includes("N"), "trim notice still appended after breadcrumbs")
+}
+
+// ---------- Test 9: token truncation never splits a (multi-byte) character ----------
+{
+  function userText(id: string, text: string): ChatMessage {
+    return { info: { id, role: "user" } as any, parts: [{ id: id + "-t", type: "text", text } as any] }
+  }
+  const msgs: ChatMessage[] = []
+  for (let i = 1; i <= 21; i++) {
+    msgs.push(userText("u" + i, i === 10 ? "帮我修复登录页面的错误提示" : "x"))
+    msgs.push(assistantWithTools("a" + i))
+  }
+  // Each CJK char is 3 UTF-8 bytes. maxTokens=3 -> ~10 byte budget: 3 chars (9 bytes)
+  // fit, the 4th (would reach 12) overflows and must NOT be split -> stop at 3 chars.
+  const strat = turnWindow({
+    threshold: 20,
+    recentFullTurns: 5,
+    priorTrimmedTurns: 5,
+    breadcrumbUserMessages: 1,
+    breadcrumbMaxTokens: 3,
+    notice: "",
+  })
+  const out = strat.apply(msgs, { sessionID: "cjk" } as any)
+  const text = (out[0].parts[0] as any).text as string
+  assert(text.includes("帮我修 …"), "CJK cut at char boundary (3 chars), no half character: got " + JSON.stringify(text))
+  assert(!/\ufffd/.test(text), "no replacement char -> no broken UTF-8")
+}
+
+// ---------- Test 10: breadcrumbs disabled by default (no options) ----------
+{
+  const strat = turnWindow({ threshold: 20, recentFullTurns: 5, priorTrimmedTurns: 5, notice: "N" })
+  const out = strat.apply(convo(21), { sessionID: "nobc" } as any)
+  const text = (out[0].parts[0] as any).text as string
+  assertEq(text, "N", "no breadcrumbs when options omitted; only notice")
+}
+
 console.log("OK: sticky compaction-safe turnWindow behaves as specified")
 
 // helpers

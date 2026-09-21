@@ -51,6 +51,19 @@ export interface TurnWindowOptions {
    * never busts the cache, so this gate only guards those boundary jumps.
    */
   cacheAwareMinutes?: number
+  /**
+   * How many of the MOST RECENT user messages from the DROPPED region (turns
+   * before the boundary) to preserve as short "breadcrumbs" so the agent keeps a
+   * trail of what was discussed earlier. 0 disables breadcrumbs.
+   */
+  breadcrumbUserMessages?: number
+  /**
+   * Max tokens kept per breadcrumb user message. Estimated as ~3.5 UTF-8 bytes
+   * per token; text is cut at the character whose inclusion first exceeds that
+   * byte budget (never splitting a character), with an ellipsis appended if
+   * truncated.
+   */
+  breadcrumbMaxTokens?: number
   /** Only run for these model IDs. Empty/omitted = all models. */
   onlyModels?: string[]
   /**
@@ -165,6 +178,68 @@ function flattenTurn(turn: Turn): ChatMessage[] {
   return [...turn.users, ...turn.assistants]
 }
 
+/** Concatenated text of a message's text parts. */
+function messageText(message: ChatMessage): string {
+  return message.parts
+    .filter(isText)
+    .map((p) => (p as unknown as { text?: string }).text ?? "")
+    .join(" ")
+    .trim()
+}
+
+// A "word" is either a single CJK/Kana/Hangul character or a run of
+// non-whitespace non-CJK characters, so Chinese needs no segmentation.
+const encoder = new TextEncoder()
+
+/** Rough token→byte estimate: ~3.5 UTF-8 bytes per token. */
+const BYTES_PER_TOKEN = 3.5
+
+/**
+ * Truncate text to at most `maxTokens` tokens (estimated as ~3.5 UTF-8 bytes per
+ * token). Cuts at the character whose inclusion would first exceed the byte
+ * budget (never splitting a character) and appends an ellipsis if anything was
+ * dropped.
+ */
+function truncateToTokens(text: string, maxTokens: number): string {
+  const t = text.trim()
+  if (maxTokens <= 0 || t === "") return ""
+  const maxBytes = Math.floor(maxTokens * BYTES_PER_TOKEN)
+  if (maxBytes <= 0) return ""
+  if (encoder.encode(t).length <= maxBytes) return t
+  let bytes = 0
+  let out = ""
+  for (const ch of t) {
+    const chBytes = encoder.encode(ch).length
+    if (bytes + chBytes > maxBytes) break
+    bytes += chBytes
+    out += ch
+  }
+  return out + " …"
+}
+
+/**
+ * From the dropped region (turns before the boundary), take the most recent
+ * `maxMessages` user messages and truncate each to `maxTokens` tokens. Returns
+ * the breadcrumb lines in chronological order.
+ */
+function collectBreadcrumbs(droppedTurns: Turn[], maxMessages: number, maxTokens: number): string[] {
+  if (maxMessages <= 0 || maxTokens <= 0) return []
+  const users: ChatMessage[] = []
+  for (const turn of droppedTurns) users.push(...turn.users)
+  return users
+    .slice(-maxMessages)
+    .map((u) => truncateToTokens(messageText(u), maxTokens))
+    .filter((s) => s !== "")
+}
+
+/** Assemble the breadcrumb block prepended ahead of the trim notice. */
+function breadcrumbBlock(lines: string[]): string {
+  return [
+    `[context-trimmer] 以下是更早对话中被裁剪的用户消息摘要（每条已截断，仅供回忆线索）：`,
+    ...lines.map((line, i) => `  ${i + 1}. ${line}`),
+  ].join("\n")
+}
+
 /**
  * Prepend the trim notice as a synthetic text part on the FIRST user message of
  * the given list. This avoids introducing a second adjacent user message (which
@@ -225,6 +300,8 @@ export function turnWindow(options: TurnWindowOptions | (() => TurnWindowOptions
       const keepTurns = recentFullTurns + priorTrimmedTurns
       const noticeOption = opts.notice ?? DEFAULT_NOTICE
       const cacheAwareMinutes = opts.cacheAwareMinutes ?? 0
+      const breadcrumbUserMessages = opts.breadcrumbUserMessages ?? 0
+      const breadcrumbMaxTokens = opts.breadcrumbMaxTokens ?? 0
       const now = opts.now ?? Date.now
 
       const turns = partitionTurns(messages)
@@ -282,11 +359,20 @@ export function turnWindow(options: TurnWindowOptions | (() => TurnWindowOptions
         else result.push(...flattenTurn(turn))
       })
 
+      const breadcrumbs = collectBreadcrumbs(
+        turns.slice(0, boundaryIndex),
+        breadcrumbUserMessages,
+        breadcrumbMaxTokens,
+      )
+
       const noticeText =
         typeof noticeOption === "function"
           ? noticeOption({ sessionID, storagePath: STORAGE_PATH })
           : noticeOption
-      if (noticeText) result = prependNotice(result, noticeText)
+      const prefix = [breadcrumbs.length > 0 ? breadcrumbBlock(breadcrumbs) : "", noticeText]
+        .filter((s) => s)
+        .join("\n\n")
+      if (prefix) result = prependNotice(result, prefix)
       return result
     },
   }

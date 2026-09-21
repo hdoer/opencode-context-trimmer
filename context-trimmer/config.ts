@@ -37,14 +37,29 @@ export interface TrimmerConfig {
    * trim-induced cache miss. Set to 0 to trim as soon as the threshold hits.
    */
   cacheAwareMinutes: number
+  /**
+   * How many of the MOST RECENT user messages from the dropped region (turns
+   * before the kept window) to preserve as short "breadcrumbs", so the agent
+   * still has a trail of what was discussed earlier. Set to 0 to disable.
+   */
+  breadcrumbUserMessages: number
+  /**
+   * Max tokens kept per breadcrumb user message. Estimated as ~3.5 UTF-8 bytes
+   * per token; the text is cut at the character whose inclusion first exceeds
+   * that byte budget (never splitting a character), with an ellipsis appended if
+   * truncated.
+   */
+  breadcrumbMaxTokens: number
 }
 
 export const DEFAULT_CONFIG: TrimmerConfig = {
   enabled: true,
-  threshold: 10,
-  recentFullTurns: 3,
-  priorTrimmedTurns: 2,
+  threshold: 20,
+  recentFullTurns: 5,
+  priorTrimmedTurns: 5,
   cacheAwareMinutes: 5,
+  breadcrumbUserMessages: 100,
+  breadcrumbMaxTokens: 100,
 }
 
 const CONFIG_PATH =
@@ -67,6 +82,8 @@ export function normalize(raw: unknown): TrimmerConfig {
     recentFullTurns: intField(o.recentFullTurns, DEFAULT_CONFIG.recentFullTurns, 0),
     priorTrimmedTurns: intField(o.priorTrimmedTurns, DEFAULT_CONFIG.priorTrimmedTurns, 0),
     cacheAwareMinutes: intField(o.cacheAwareMinutes, DEFAULT_CONFIG.cacheAwareMinutes, 0),
+    breadcrumbUserMessages: intField(o.breadcrumbUserMessages, DEFAULT_CONFIG.breadcrumbUserMessages, 0),
+    breadcrumbMaxTokens: intField(o.breadcrumbMaxTokens, DEFAULT_CONFIG.breadcrumbMaxTokens, 0),
   }
 }
 
