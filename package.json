@@ -1,6 +1,6 @@
 {
   "name": "opencode-context-trimmer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "An opencode plugin that trims upstream conversation context on long sessions to cut token cost, with a cache-aware gate and on-disk config.",
   "type": "module",
   "license": "MIT",
