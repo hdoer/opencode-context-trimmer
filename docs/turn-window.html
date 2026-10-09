@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>context-trimmer · turn-window</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background:
+      linear-gradient(rgba(90,120,160,0.05) 1px, transparent 1px) 0 0 / 100% 26px,
+      linear-gradient(90deg, rgba(90,120,160,0.05) 1px, transparent 1px) 0 0 / 26px 100%,
+      radial-gradient(ellipse at 50% 30%, #16202e, #0a0f16 80%);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    color: #e7edf5;
+    padding: 28px;
+    display: flex;
+    justify-content: center;
+  }
+  .wrap { width: 1024px; max-width: 100%; }
+
+  .heading { margin-bottom: 20px; }
+  .heading h1 { font-size: 26px; font-weight: 800; letter-spacing: .3px; }
+  .heading .sub { font-size: 14px; color: #9aa6b4; margin-top: 6px; }
+
+  .row-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin: 4px 0 10px;
+    color: #eef3fa;
+    text-shadow: 0 1px 4px rgba(0,0,0,.6);
+  }
+  .row-title small { font-weight: 600; font-size: 14px; color: #9aa6b4; margin-left: 10px; }
+
+  .turns { display: flex; align-items: flex-start; gap: 0; }
+  .turn { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: stretch; padding: 0 4px; }
+  .sep {
+    align-self: flex-start;
+    margin-top: 38px;
+    color: #cdd6e2;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .top-brace {
+    height: 12px;
+    border: 2px solid #4a7bd0;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    margin-bottom: 10px;
+    box-shadow: 0 0 8px rgba(74,123,208,0.35);
+  }
+
+  .boxes { display: flex; gap: 2px; align-items: center; justify-content: flex-start; min-height: 24px; }
+  .box {
+    width: 10px; height: 20px;
+    border: 1.5px solid;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .box.green { border-color: #4fd486; background: rgba(79,212,134,0.14); box-shadow: 0 0 9px rgba(79,212,134,0.4); }
+  .box.red   { border-color: #e8524a; background: rgba(232,82,74,0.12); box-shadow: 0 0 7px rgba(232,82,74,0.3); }
+  .box.gray  { border-color: #8792a0; background: rgba(120,132,148,0.15); box-shadow: 0 0 6px rgba(135,146,160,0.25); }
+  .box.ghost { opacity: .28; filter: grayscale(.4); box-shadow: none; }
+
+  .bot-brace {
+    height: 12px;
+    border: 2px solid #566273;
+    border-top: none;
+    border-radius: 0 0 7px 7px;
+    margin: 10px 4px 0;
+  }
+  .turn-label { text-align: center; font-size: 14px; font-weight: 700; color: #e7edf5; margin-top: 8px; }
+
+  .center-arrow { display: flex; flex-direction: column; align-items: center; margin: 2px 0 14px; }
+  .center-arrow .cap { font-size: 18px; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px; color: #9fb3cc; }
+  .big-arrow {
+    width: 0; height: 0;
+    border-left: 24px solid transparent;
+    border-right: 24px solid transparent;
+    border-top: 28px solid rgba(130,160,200,0.5);
+    position: relative;
+  }
+  .big-arrow .stem { position: absolute; width: 20px; height: 18px; left: -10px; top: -46px; background: rgba(130,160,200,0.45); }
+
+  /* region band under a row */
+  .regions { display: flex; margin-top: 14px; gap: 8px; align-items: stretch; }
+  .region { border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; min-width: 0; overflow-wrap: break-word; }
+  .region .rname { font-weight: 800; font-size: 14px; margin-bottom: 3px; }
+  .region.drop { border: 1.5px dashed #566273; background: rgba(86,98,115,0.08); color: #9aa6b4; }
+  .region.bread { border: 1.5px solid rgba(79,212,134,0.4); background: rgba(79,212,134,0.06); color: #8fe0ad; }
+  .region.trim { border: 1.5px solid rgba(232,82,74,0.4); background: rgba(232,82,74,0.06); color: #e9b6b2; }
+  .region.full { border: 1.5px solid rgba(79,212,134,0.4); background: rgba(79,212,134,0.06); color: #bfe8cf; }
+
+  .boundary-note { font-size: 13px; color: #9fb3cc; margin: 14px 0 2px; }
+  .boundary-note b { color: #cdd6e2; }
+
+  /* breadcrumb bars shown in the breadcrumb segment */
+  .crumbs { display: flex; flex-direction: column; gap: 3px; height: 22px; justify-content: center; overflow: hidden; }
+  .crumb { display: flex; align-items: center; gap: 4px; }
+  .crumb .dot {
+    width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0;
+    border: 1px solid #4fd486; background: rgba(79,212,134,0.18);
+  }
+  .crumb .bar {
+    height: 5px; border-radius: 3px;
+    background: linear-gradient(90deg, rgba(79,212,134,0.6), rgba(79,212,134,0.12));
+  }
+  .crumb .cut { font-size: 9px; color: #7f8b99; line-height: 1; }
+
+  /* dropped segment: faint ghosted boxes */
+  .box.ghost { opacity: .22; filter: grayscale(.5); box-shadow: none; }
+  .drop-boxes { gap: 2px; }
+  .drop-gap { width: 6px; flex-shrink: 0; }
+
+  /* breadcrumb segment framing */
+  .turn.crumbseg .crumbs {
+    border: 1.5px solid rgba(79,212,134,0.35);
+    border-radius: 7px;
+    background: rgba(79,212,134,0.06);
+    height: 26px;
+    padding: 0 8px;
+  }
+  .crumb-brace { border-color: rgba(79,212,134,0.4) !important; box-shadow: none !important; }
+  .crumb-label { color: #8fe0ad !important; font-weight: 700 !important; font-size: 12px !important; }
+  .drop-brace { border-color: #566273 !important; box-shadow: none !important; }
+  .drop-label { color: #7f8b99 !important; font-weight: 600 !important; font-size: 12px !important; }
+
+  .legend {
+    margin-top: 22px;
+    border: 1.5px solid #2b3a4d;
+    border-radius: 14px;
+    background: rgba(20,30,42,0.6);
+    padding: 16px 24px 20px;
+  }
+  .legend-title { text-align: center; font-size: 18px; font-weight: 800; margin-bottom: 14px; }
+  .legend-items { display: flex; justify-content: space-around; gap: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 12px; }
+  .legend-box { width: 32px; height: 32px; border: 2px solid; border-radius: 7px; flex-shrink: 0; }
+  .legend-box.green { border-color: #4fd486; background: rgba(79,212,134,0.14); box-shadow: 0 0 9px rgba(79,212,134,0.4); }
+  .legend-box.red   { border-color: #e8524a; background: rgba(232,82,74,0.12); box-shadow: 0 0 7px rgba(232,82,74,0.3); }
+  .legend-box.gray  { border-color: #8792a0; background: rgba(120,132,148,0.15); }
+  .legend-name { font-size: 16px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="heading">
+    <h1>context-trimmer · turn-window 裁剪策略</h1>
+    <div class="sub">一轮 = 连续用户消息 + 回应它们的助手消息（工具循环 + 最终回答）。活跃轮数超过 threshold 时触发裁剪。</div>
+  </div>
+
+  <!-- Before -->
+  <div class="section">
+    <div class="row-title">裁剪前 <small>整段历史每轮都重复发给模型</small></div>
+    <div class="turns" id="before"></div>
+  </div>
+
+  <div class="center-arrow">
+    <div class="cap">TURN-WINDOW TRIM</div>
+    <div class="big-arrow"><div class="stem"></div></div>
+  </div>
+
+  <!-- After -->
+  <div class="section">
+    <div class="row-title">裁剪后 <small>只发送粘性窗口内的轮次</small></div>
+    <div class="turns" id="after"></div>
+    <div class="boundary-note">粘性边界固定在 <b>c − (recentFullTurns + priorTrimmedTurns)</b>，随对话增长保持不动，保证前缀逐字节稳定、不破坏 prompt 缓存。</div>
+    <div class="regions">
+      <div class="region drop" style="flex:2">
+        <div class="rname">丢弃区（Dropped）</div>
+        更早轮次整体丢弃，不再发给模型；完整历史存于本地，可用 context_recall 取回。
+      </div>
+      <div class="region bread" style="flex:2">
+        <div class="rname">面包屑（Breadcrumbs）</div>
+        丢弃区中靠近边界的 100 条用户消息，每条截断至 100 token，前置到首条保留消息。
+      </div>
+      <div class="region trim" style="flex:3">
+        <div class="rname">裁剪区（priorTrimmedTurns）</div>
+        只保留用户输入 + 助手最终文本，丢弃中间的工具循环。
+      </div>
+      <div class="region full" style="flex:2">
+        <div class="rname">完整区（recentFullTurns）</div>
+        最近几轮完整保留：用户输入 + 工具循环 + 最终回答。
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-title">Legend</div>
+    <div class="legend-items">
+      <div class="legend-item"><div class="legend-box green"></div><div class="legend-name">User Input</div></div>
+      <div class="legend-item"><div class="legend-box red"></div><div class="legend-name">Tool Call / Tool Result</div></div>
+      <div class="legend-item"><div class="legend-box gray"></div><div class="legend-name">Agent Response</div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function box(type, ghost) {
+    const b = document.createElement('div');
+    b.className = 'box ' + type + (ghost ? ' ghost' : '');
+    return b;
+  }
+  // kind: 'full' = green + reds + gray; 'trim' = green + gray; 'drop' = all ghost
+  function makeBoxes(reds, kind) {
+    const wrap = document.createElement('div');
+    wrap.className = 'boxes';
+    const ghost = kind === 'drop';
+    wrap.appendChild(box('green', ghost));
+    if (kind !== 'trim') {
+      for (let i = 0; i < reds; i++) wrap.appendChild(box('red', ghost));
+    }
+    wrap.appendChild(box('gray', ghost));
+    return wrap;
+  }
+  function turn(reds, kind, label) {
+    const t = document.createElement('div');
+    t.className = 'turn';
+    const top = document.createElement('div'); top.className = 'top-brace'; t.appendChild(top);
+    t.appendChild(makeBoxes(reds, kind));
+    const bb = document.createElement('div'); bb.className = 'bot-brace'; t.appendChild(bb);
+    const lb = document.createElement('div'); lb.className = 'turn-label'; lb.textContent = label; t.appendChild(lb);
+    return t;
+  }
+  // Dropped segment: several ghosted turns (faint), shown collapsed.
+  function dropSeg(flexGrow, label) {
+    const t = document.createElement('div');
+    t.className = 'turn';
+    t.style.flex = flexGrow;
+    const top = document.createElement('div'); top.className = 'top-brace drop-brace'; t.appendChild(top);
+    const wrap = document.createElement('div'); wrap.className = 'boxes drop-boxes';
+    const turnsSpec = [3, 2, 4, 2, 3, 2];
+    turnsSpec.forEach((reds, ti) => {
+      if (ti > 0) { const g = document.createElement('div'); g.className = 'drop-gap'; wrap.appendChild(g); }
+      wrap.appendChild(box('green', true));
+      for (let i = 0; i < reds; i++) wrap.appendChild(box('red', true));
+      wrap.appendChild(box('gray', true));
+    });
+    t.appendChild(wrap);
+    const bb = document.createElement('div'); bb.className = 'bot-brace drop-brace'; t.appendChild(bb);
+    const lb = document.createElement('div'); lb.className = 'turn-label drop-label'; lb.textContent = label; t.appendChild(lb);
+    return t;
+  }
+  // Breadcrumb segment: retained user messages, each truncated.
+  function crumbSeg(flexGrow, rows, label) {
+    const t = document.createElement('div');
+    t.className = 'turn crumbseg';
+    t.style.flex = flexGrow;
+    const top = document.createElement('div'); top.className = 'top-brace crumb-brace'; t.appendChild(top);
+    const wrap = document.createElement('div'); wrap.className = 'crumbs';
+    const widths = [100, 58, 82, 45];
+    for (let i = 0; i < rows; i++) {
+      const w = widths[i % widths.length];
+      const row = document.createElement('div'); row.className = 'crumb';
+      const dot = document.createElement('div'); dot.className = 'dot';
+      const bar = document.createElement('div'); bar.className = 'bar'; bar.style.width = w + '%';
+      row.appendChild(dot); row.appendChild(bar);
+      if (w < 100) { const c = document.createElement('span'); c.className = 'cut'; c.textContent = '…'; row.appendChild(c); }
+      wrap.appendChild(row);
+    }
+    t.appendChild(wrap);
+    const bb = document.createElement('div'); bb.className = 'bot-brace crumb-brace'; t.appendChild(bb);
+    const lb = document.createElement('div'); lb.className = 'turn-label crumb-label'; lb.textContent = label; t.appendChild(lb);
+    return t;
+  }
+  function sep(txt) {
+    const a = document.createElement('div'); a.className = 'sep'; a.textContent = txt; return a;
+  }
+  function fill(id, items) {
+    const root = document.getElementById(id);
+    items.forEach((it) => {
+      if (it.sep) root.appendChild(sep(it.sep));
+      else if (it.drop) root.appendChild(dropSeg(it.flex, it.label));
+      else if (it.crumb) root.appendChild(crumbSeg(it.flex, it.rows, it.label));
+      else root.appendChild(turn(it.reds, it.kind, it.label));
+    });
+  }
+
+  // Before: all turns full
+  fill('before', [
+    { reds: 3, kind: 'full', label: 'Turn 1' },
+    { reds: 2, kind: 'full', label: 'Turn 2' },
+    { reds: 4, kind: 'full', label: 'Turn 3' },
+    { sep: '\u22EF' },
+    { reds: 3, kind: 'full', label: 'Turn n-4' },
+    { reds: 4, kind: 'full', label: 'Turn n-3' },
+    { reds: 2, kind: 'full', label: 'Turn n-2' },
+    { reds: 3, kind: 'full', label: 'Turn n-1' },
+    { reds: 2, kind: 'full', label: 'Turn n' },
+  ]);
+
+  // After: dropped segment + breadcrumb segment, then trimmed, then full
+  fill('after', [
+    { drop: true, flex: '2', label: '丢弃' },
+    { crumb: true, flex: '2', rows: 4, label: '面包屑' },
+    { reds: 3, kind: 'trim', label: 'Turn n-4' },
+    { reds: 4, kind: 'trim', label: 'Turn n-3' },
+    { reds: 2, kind: 'trim', label: 'Turn n-2' },
+    { reds: 3, kind: 'full', label: 'Turn n-1' },
+    { reds: 2, kind: 'full', label: 'Turn n' },
+  ]);
+
+</script>
+</body>
+</html>
