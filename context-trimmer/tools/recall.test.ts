@@ -120,7 +120,16 @@ async function run() {
     assert(out.includes("session=ses_other"), "scope:all should find other-project session")
   }
 
-  // 7) empty query is rejected.
+  // 7) explicit sessionID targets exactly that session, bypassing scope.
+  {
+    const out = await run({ query: "mysql", sessionID: "ses_other" })
+    assert(out.includes("session=ses_other"), "sessionID should hit the targeted session directly")
+    const miss = await run({ query: "webhook", sessionID: "ses_other" })
+    assert(miss.startsWith("No results"), "sessionID limits search to that one session")
+    assert(miss.includes("ses_other"), "miss hint should name the targeted session")
+  }
+
+  // 8) empty query is rejected.
   {
     const out = await run({ query: "   " })
     assert(out.includes("Empty query"), "blank query rejected")

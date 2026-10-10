@@ -7,7 +7,12 @@
  * back on demand via the opencode client API (no SQL, no file paths) — it reads
  * exactly what was trimmed away.
  *
- * Scope (three tiers, cheapest first):
+ * Targeting one session directly:
+ *   - Pass `sessionID` to search exactly that session (e.g. an id seen in an
+ *     earlier result's `session=...`). It bypasses `scope` entirely and is the
+ *     cheapest, most precise lookup.
+ *
+ * Scope (three tiers, cheapest first; used only when `sessionID` is absent):
  *   - "session" (default): only the running session. Fast and most relevant.
  *     The tool receives the live session id from its execute context, so
  *     subagents automatically search their OWN (child) session.
@@ -139,11 +144,20 @@ export function createRecallTool(client: OpencodeClient) {
       "Multiple space-separated words are AND-matched (case-insensitive).",
     args: {
       query: tool.schema.string().describe("Keyword(s) to search for. Space-separated words must all appear."),
+      sessionID: tool.schema
+        .string()
+        .optional()
+        .describe(
+          "Search exactly this one session id (e.g. from an earlier result's `session=...`). " +
+            "When set, `scope` is ignored — this is the cheapest, most precise lookup. " +
+            "Use it when you already know which session holds the content.",
+        ),
       scope: tool.schema
         .enum(["session", "project", "all"])
         .optional()
         .describe(
-          "session (default): only this session — fastest, most relevant. " +
+          "Ignored when `sessionID` is set. " +
+            "session (default): only this session — fastest, most relevant. " +
             "project: every session in the current project (sibling + subagent child sessions). " +
             "all: every session across ALL projects on this machine — potentially expensive, " +
             "so use it ONLY when the user explicitly asks to search across projects. " +
@@ -159,10 +173,14 @@ export function createRecallTool(client: OpencodeClient) {
         return "Empty query — provide at least one keyword."
       }
 
+      // An explicit session id is the most precise lookup; it bypasses scope.
+      const targetID = args.sessionID?.trim()
       const scope = args.scope ?? "session"
       let hits: SearchHit[] = []
 
-      if (scope === "session") {
+      if (targetID) {
+        hits = await searchSession(client, targetID, terms)
+      } else if (scope === "session") {
         hits = await searchSession(client, context.sessionID, terms)
       } else {
         const ids = scope === "all" ? await listAllSessions(client) : await listProjectSessions(client)
@@ -173,8 +191,9 @@ export function createRecallTool(client: OpencodeClient) {
       }
 
       if (hits.length === 0) {
-        const hint =
-          scope === "session"
+        const hint = targetID
+          ? ` No matches in session ${targetID}.`
+          : scope === "session"
             ? ' No matches in this session. Retry with scope:"project" to search the whole project.'
             : scope === "project"
               ? " No matches in this project."

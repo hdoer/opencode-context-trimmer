@@ -265,7 +265,9 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
 `context_recall` 工具，让模型可以按需取回被裁掉的内容：
 
 - `query` —— 关键词；以空格分隔的多个词按"与"匹配（大小写不敏感）。
-- `scope` —— 三档，从窄到宽：
+- `sessionID` —— 可选。直接指定要查的会话 id（例如上一次结果里 `session=...` 给出的 id）。
+  传了它就**只查这一个会话、忽略 `scope`**，是最省、最精准的定点查法。
+- `scope` —— 未指定 `sessionID` 时生效，三档从窄到宽：
   - `session`（默认）—— 仅当前会话，最快、最相关。
   - `project` —— 当前项目的全部会话（含兄弟会话与 subagent 子会话）。
   - `all` —— 本机**所有项目**的全部会话。可能较慢（无命中时会扫全库），
