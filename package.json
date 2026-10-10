@@ -41,6 +41,6 @@
     "@opencode-ai/sdk": "^1.18.22"
   },
   "scripts": {
-    "test": "bun run context-trimmer/config.test.ts && bun run context-trimmer/strategies/turn-window.test.ts && bun run context-trimmer/tools/recall.test.ts"
+    "test": "bun run context-trimmer/config.test.ts && bun run context-trimmer/context.test.ts && bun run context-trimmer/strategies/turn-window.test.ts && bun run context-trimmer/tools/recall.test.ts"
   }
 }

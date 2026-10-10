@@ -69,14 +69,21 @@ export const ContextTrimmer: Plugin = async ({ client }) => {
 
       const original = (output?.messages ?? []) as ChatMessage[]
 
-      // Prefer the model/provider bridged from chat.params, but never hard-fail on
-      // its absence: the session id is carried on every message (info.sessionID),
-      // so we can always build a minimal context and still trim.
-      let ctx = store.latest()
-      if (!ctx) {
-        const sid = original.find((m) => m?.info?.sessionID)?.info?.sessionID
-        if (sid) ctx = { sessionID: sid }
-      }
+      // Resolve the context by the TRUE session id carried on the messages, not
+      // by store.latest(). The transform hook's input is empty, so chat.params
+      // bridges model/provider info via `store`; but `store.latest()` tracks only
+      // the globally most-recent chat.params. A subagent (or any interleaved
+      // session) runs its own turns in the SAME process, moving that global
+      // pointer onto the CHILD session. When the parent resumes, latest() would
+      // hand us the child's context while `original` is the parent's messages —
+      // the per-session sticky boundary is then looked up under the wrong key, so
+      // trimming silently no-ops and the full (untrimmed) history overflows the
+      // model context window.
+      //
+      // Every message carries info.sessionID, so use it as the source of truth
+      // and only consult `store` to enrich that id with model/provider info.
+      const sid = original.find((m) => m?.info?.sessionID)?.info?.sessionID
+      let ctx = store.resolve(sid)
       if (!ctx) return
 
       const beforeLen = original.length
