@@ -31,7 +31,7 @@ import { createLogger } from "./context-trimmer/logger"
  * we hardcode it rather than import package.json because the local-file install
  * only copies the source, not package.json.
  */
-const VERSION = "0.2.0"
+const VERSION = "0.2.1"
 
 export const ContextTrimmer: Plugin = async ({ client }) => {
   const store = new SessionContextStore()
