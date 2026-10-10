@@ -113,7 +113,7 @@ const DEFAULT_NOTICE = (info: NoticeInfo): string =>
     ``,
     `当你需要被裁剪掉的信息时，调用 context_recall 工具即可取回原文：`,
     `  - query：要找的关键词，多个词用空格分隔（大小写不敏感，须全部命中）。`,
-    `  - scope：默认 "current"（只查本会话，最相关）；本会话查不到时用 "all"（跨全部会话，可覆盖 subagent 子会话）。`,
+    `  - scope：默认 "session"（只查本会话，最快最相关）；本会话查不到用 "project"（查当前项目全部会话，含 subagent 子会话）；仅当用户明确要跨项目查找时才用 "all"（扫本机所有项目，开销较大，不要自行升级）。`,
     ``,
     `无需人工确认路径或数据库位置——直接调用 context_recall 即可。`,
   ].join("\n")

@@ -7,12 +7,23 @@
  * back on demand via the opencode client API (no SQL, no file paths) — it reads
  * exactly what was trimmed away.
  *
- * Scope:
- *   - "current" (default): search only the running session. Fast and most
- *     relevant. The tool receives the live session id from its execute context,
- *     so subagents automatically search their OWN (child) session.
- *   - "all": search every session (covers subagent child sessions and other
- *     conversations). Use only when "current" turns up nothing.
+ * Scope (three tiers, cheapest first):
+ *   - "session" (default): only the running session. Fast and most relevant.
+ *     The tool receives the live session id from its execute context, so
+ *     subagents automatically search their OWN (child) session.
+ *   - "project": every session in the CURRENT project (same worktree). Covers
+ *     sibling conversations and subagent child sessions of this project.
+ *   - "all": every session across EVERY project on this machine. This can be
+ *     expensive (it may scan the entire history when nothing matches), so it is
+ *     reserved for when the user explicitly asks to search across projects —
+ *     e.g. "we discussed X in some other repo, find it". Never pick "all" on
+ *     your own just because a narrower scope came up empty.
+ *
+ * How the tiers map onto the opencode client:
+ *   - session: session.messages({ path: { id } }) for one id.
+ *   - project: session.list() (defaults to the server's project) -> messages.
+ *   - all:     project.list() -> session.list({ query: { directory } }) per
+ *              project worktree -> messages.
  */
 import { tool } from "@opencode-ai/plugin"
 import type { PluginInput } from "@opencode-ai/plugin"
@@ -93,6 +104,32 @@ async function searchSession(client: OpencodeClient, sessionID: string, terms: s
   return hits
 }
 
+/** List every session in the current project (server's default directory). */
+async function listProjectSessions(client: OpencodeClient): Promise<string[]> {
+  const list = ((await client.session.list()) as any)?.data ?? []
+  return list.map((s: any) => s?.id).filter(Boolean)
+}
+
+/** List every session across every project worktree on this machine. */
+async function listAllSessions(client: OpencodeClient): Promise<string[]> {
+  const projects = ((await client.project.list()) as any)?.data ?? []
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const p of projects) {
+    const directory = p?.worktree
+    if (!directory) continue
+    const list = ((await client.session.list({ query: { directory } } as any)) as any)?.data ?? []
+    for (const s of list) {
+      const id = s?.id
+      if (id && !seen.has(id)) {
+        seen.add(id)
+        ids.push(id)
+      }
+    }
+  }
+  return ids
+}
+
 export function createRecallTool(client: OpencodeClient) {
   return tool({
     description:
@@ -103,10 +140,14 @@ export function createRecallTool(client: OpencodeClient) {
     args: {
       query: tool.schema.string().describe("Keyword(s) to search for. Space-separated words must all appear."),
       scope: tool.schema
-        .enum(["current", "all"])
+        .enum(["session", "project", "all"])
         .optional()
         .describe(
-          "current (default): only this session — fastest, most relevant. all: every session, covers subagent child sessions; use only if current finds nothing.",
+          "session (default): only this session — fastest, most relevant. " +
+            "project: every session in the current project (sibling + subagent child sessions). " +
+            "all: every session across ALL projects on this machine — potentially expensive, " +
+            "so use it ONLY when the user explicitly asks to search across projects. " +
+            "Do not escalate to a wider scope on your own just because a narrower one found nothing.",
         ),
     },
     async execute(args, context) {
@@ -118,26 +159,26 @@ export function createRecallTool(client: OpencodeClient) {
         return "Empty query — provide at least one keyword."
       }
 
-      const scope = args.scope ?? "current"
+      const scope = args.scope ?? "session"
       let hits: SearchHit[] = []
 
-      if (scope === "all") {
-        const list = ((await client.session.list()) as any)?.data ?? []
-        for (const s of list) {
-          const id = s?.id
-          if (!id) continue
+      if (scope === "session") {
+        hits = await searchSession(client, context.sessionID, terms)
+      } else {
+        const ids = scope === "all" ? await listAllSessions(client) : await listProjectSessions(client)
+        for (const id of ids) {
           hits.push(...(await searchSession(client, id, terms)))
           if (hits.length >= MAX_MATCHES) break
         }
-      } else {
-        hits = await searchSession(client, context.sessionID, terms)
       }
 
       if (hits.length === 0) {
         const hint =
-          scope === "current"
-            ? ' No matches in this session. Retry with scope:"all" to also search subagent child sessions.'
-            : " No matches in any session."
+          scope === "session"
+            ? ' No matches in this session. Retry with scope:"project" to search the whole project.'
+            : scope === "project"
+              ? " No matches in this project."
+              : " No matches in any project."
         return `No results for "${args.query}".${hint}`
       }
 

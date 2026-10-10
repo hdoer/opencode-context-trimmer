@@ -16,10 +16,10 @@
 <table align="center">
 <tr>
 <td align="center">🌊<br/><b>无限上下文</b><br/><sub>一直聊下去，不会被上下文上限打断</sub></td>
-<td align="center">💸<br/><b>成本不失控</b><br/><sub>不重发冗余历史，账单不滚雪球</sub></td>
-<td align="center">⚡<br/><b>零额外延时</b><br/><sub>本地瞬时完成，不多等一次模型往返</sub></td>
+<td align="center">💸<br/><b>不花冤枉钱</b><br/><sub>旧历史不反复重发，就不反复计费</sub></td>
+<td align="center">⚡<br/><b>零延时</b><br/><sub>本地瞬时完成，没有额外的模型调用</sub></td>
 <td align="center">🎯<br/><b>缓存无损</b><br/><sub>不破坏 prompt 缓存</sub></td>
-<td align="center">🔎<br/><b>可随时召回</b><br/><sub>信息永不真正丢失</sub></td>
+<td align="center">🔎<br/><b>可随时召回</b><br/><sub>裁掉的内容仍可按需取回，还能跨项目检索</sub></td>
 </tr>
 </table>
 
@@ -55,7 +55,7 @@ context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉
 | | 压缩/总结 | **context-trimmer** |
 |---|---|---|
 | 额外 token 费用 | ❌ 每次都调模型 | ✅ 零 |
-| 额外延时 | ❌ 多一轮往返 | ✅ 进程内同步 |
+| 额外延时 | ❌ 额外调一次模型 | ✅ 本地瞬时完成 |
 | 原文保真 | ❌ 有损概要 | ✅ 完整留本地 |
 | prompt 缓存 | ❌ 前缀重写、失效 | ✅ 粘性边界、无损 |
 | 信息找回 | ❌ 无法还原 | ✅ `context_recall` 取回 |
@@ -127,7 +127,7 @@ context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉
 
 当你需要被裁剪掉的信息时，调用 context_recall 工具即可取回原文：
   - query：要找的关键词，多个词用空格分隔（大小写不敏感，须全部命中）。
-  - scope：默认 "current"（只查本会话，最相关）；本会话查不到时用 "all"（跨全部会话，可覆盖 subagent 子会话）。
+  - scope：默认 "session"（只查本会话，最快最相关）；本会话查不到用 "project"（查当前项目全部会话，含 subagent 子会话）；仅当用户明确要跨项目查找时才用 "all"（扫本机所有项目，开销较大，不要自行升级）。
 
 无需人工确认路径或数据库位置——直接调用 context_recall 即可。
 ```
@@ -265,7 +265,14 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
 `context_recall` 工具，让模型可以按需取回被裁掉的内容：
 
 - `query` —— 关键词；以空格分隔的多个词按"与"匹配（大小写不敏感）。
-- `scope` —— `current`（默认，仅当前会话）或 `all`（所有会话，涵盖 subagent 子会话）。
+- `scope` —— 三档，从窄到宽：
+  - `session`（默认）—— 仅当前会话，最快、最相关。
+  - `project` —— 当前项目的全部会话（含兄弟会话与 subagent 子会话）。
+  - `all` —— 本机**所有项目**的全部会话。可能较慢（无命中时会扫全库），
+    因此仅在你明确要求跨项目查找时才用；模型不会因为窄范围没查到就自行升级到 `all`。
+
+`scope: all` 有个顺手的用法：有时你记得聊过某个话题，却想不起在哪个项目/会话里——
+明确让模型用 `all` 跨所有项目按关键词检索，就能把那段对话捞回来，不必翻遍历史。
 
 ## 扩展
 
