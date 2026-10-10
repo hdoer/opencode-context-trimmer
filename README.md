@@ -198,7 +198,8 @@ cp -R context-trimmer.ts context-trimmer ~/.config/opencode/plugin/
 grep "\[context-trimmer\]" ~/.local/share/opencode/log/opencode.log
 ```
 
-你应能看到一行 `plugin loaded`；每当裁剪一次请求时，还会看到一行
+你应能看到一行 `plugin loaded version=…`——借此可确认插件已激活、且跑的是哪个版本
+（升级或重装后用它核对是否真的生效）。每当裁剪一次请求时，还会看到一行
 `trimmed before=… after=…`。
 
 `@opencode-ai/plugin` 与 `@opencode-ai/sdk` 由 opencode 运行时提供——无需手动安装。

@@ -24,14 +24,24 @@ import { createRecallTool } from "./context-trimmer/tools/recall"
 import { loadConfig } from "./context-trimmer/config"
 import { createLogger } from "./context-trimmer/logger"
 
+/**
+ * Plugin version, surfaced in the `plugin loaded` log line so a restart makes it
+ * obvious WHICH build is actually running (e.g. after an npm bump or a manual
+ * copy into ~/.config/opencode/plugin). Keep in sync with package.json "version";
+ * we hardcode it rather than import package.json because the local-file install
+ * only copies the source, not package.json.
+ */
+const VERSION = "0.2.0"
+
 export const ContextTrimmer: Plugin = async ({ client }) => {
   const store = new SessionContextStore()
   const log = createLogger(client)
 
-  // One line at load so you can confirm the plugin is active and see its config:
-  //   grep context-trimmer ~/.local/share/opencode/log/opencode.log
+  // One line at load so you can confirm the plugin is active, see its version
+  // and config:  grep context-trimmer ~/.local/share/opencode/log/opencode.log
   const cfg = loadConfig()
   log.info("plugin loaded", {
+    version: VERSION,
     enabled: cfg.enabled,
     threshold: cfg.threshold,
     recentFullTurns: cfg.recentFullTurns,
