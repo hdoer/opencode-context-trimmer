@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -147,13 +147,13 @@
 <div class="wrap">
 
   <div class="heading">
-    <h1>context-trimmer · turn-window 裁剪策略</h1>
-    <div class="sub">一轮 = 连续用户消息 + 回应它们的助手消息（工具循环 + 最终回答）。活跃轮数超过 threshold 时触发裁剪。</div>
+    <h1>context-trimmer · turn-window trimming strategy</h1>
+    <div class="sub">A turn = consecutive user messages + the assistant messages answering them (tool loop + final answer). Trimming triggers when the active turn count exceeds threshold.</div>
   </div>
 
   <!-- Before -->
   <div class="section">
-    <div class="row-title">裁剪前 <small>整段历史每轮都重复发给模型</small></div>
+    <div class="row-title">Before <small>the whole history is resent to the model every turn</small></div>
     <div class="turns" id="before"></div>
   </div>
 
@@ -164,25 +164,25 @@
 
   <!-- After -->
   <div class="section">
-    <div class="row-title">裁剪后 <small>只发送粘性窗口内的轮次</small></div>
+    <div class="row-title">After <small>only the turns inside the sticky window are sent</small></div>
     <div class="turns" id="after"></div>
-    <div class="boundary-note">粘性边界固定在 <b>c − (recentFullTurns + priorTrimmedTurns)</b>，随对话增长保持不动，保证前缀逐字节稳定、不破坏 prompt 缓存。持续高频工作时，缓存门控可能把边界无限期冻结导致保留区膨胀溢出上下文窗口；<b>hardTriggerTurns</b>（默认 threshold×2）作为兜底，活跃轮数超过它时无视缓存强制前移边界。</div>
+    <div class="boundary-note">The sticky boundary is pinned at <b>c − (recentFullTurns + priorTrimmedTurns)</b>, staying put as the conversation grows so the prefix is byte-for-byte stable and the prompt cache isn't broken. During sustained high-frequency work the cache gate may freeze the boundary indefinitely, letting the retained region balloon past the context window; <b>hardTriggerTurns</b> (default threshold×2) is the backstop — when the active turn count exceeds it, the boundary is force-advanced regardless of the cache.</div>
     <div class="regions">
       <div class="region drop" style="flex:2">
-        <div class="rname">丢弃区（Dropped）</div>
-        更早轮次整体丢弃，不再发给模型；完整历史存于本地，可用 context_recall 取回。
+        <div class="rname">Dropped</div>
+        Older turns are dropped entirely and no longer sent to the model; the full history lives on disk and can be fetched back with context_recall.
       </div>
       <div class="region bread" style="flex:2">
-        <div class="rname">面包屑（Breadcrumbs）</div>
-        丢弃区中靠近边界的 100 条用户消息，每条截断至 100 token，前置到首条保留消息。
+        <div class="rname">Breadcrumbs</div>
+        The 100 user messages nearest the boundary in the dropped region, each truncated to 100 tokens, prepended to the first retained message.
       </div>
       <div class="region trim" style="flex:3">
-        <div class="rname">裁剪区（priorTrimmedTurns）</div>
-        只保留用户输入 + 助手最终文本，丢弃中间的工具循环。
+        <div class="rname">Trimmed (priorTrimmedTurns)</div>
+        Keeps only user input + the assistant's final text, dropping the tool loop in between.
       </div>
       <div class="region full" style="flex:2">
-        <div class="rname">完整区（recentFullTurns）</div>
-        最近几轮完整保留：用户输入 + 工具循环 + 最终回答。
+        <div class="rname">Full (recentFullTurns)</div>
+        The most recent turns kept in full: user input + tool loop + final answer.
       </div>
     </div>
   </div>
@@ -294,8 +294,8 @@
 
   // After: dropped segment + breadcrumb segment, then trimmed, then full
   fill('after', [
-    { drop: true, flex: '2', label: '丢弃' },
-    { crumb: true, flex: '2', rows: 4, label: '面包屑' },
+    { drop: true, flex: '2', label: 'Dropped' },
+    { crumb: true, flex: '2', rows: 4, label: 'Breadcrumbs' },
     { reds: 3, kind: 'trim', label: 'Turn n-4' },
     { reds: 4, kind: 'trim', label: 'Turn n-3' },
     { reds: 2, kind: 'trim', label: 'Turn n-2' },

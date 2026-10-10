@@ -70,7 +70,7 @@ context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉
 
 ## 工作原理
 
-![turn-window 裁剪策略示意图](docs/assets/turn-window.png)
+![turn-window 裁剪策略示意图](docs/assets/turn-window.zh-CN.png)
 
 插件挂载 `experimental.chat.messages.transform` 钩子（重写待发送消息的时机），
 应用一个可插拔的**策略（strategy）**。内置且默认的唯一策略是 `turn-window`：
