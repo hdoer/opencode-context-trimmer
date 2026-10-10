@@ -113,8 +113,7 @@ const DEFAULT_NOTICE = (info: NoticeInfo): string =>
     ``,
     `When you need the trimmed-away information, call the context_recall tool to fetch the original text:`,
     `  - query: keywords to search for; space-separated words are AND-matched (case-insensitive).`,
-    `  - sessionID (optional): search exactly one session id (e.g. a session=... from an earlier result); ignores scope — the cheapest, most precise lookup.`,
-    `  - scope: default "session" (this session only, fastest and most relevant); use "project" to search every session in the current project (including subagent child sessions); use "all" ONLY when the user explicitly asks to search across projects (scans every project on the machine — expensive, don't escalate on your own).`,
+    `  - scope: where to search — a keyword or a session id. "session" (default): this session only, fastest and most relevant. "project": every session in the current project (including subagent child sessions). "all": every session across all projects on the machine — expensive, use ONLY when the user explicitly asks to search across projects, don't escalate on your own. Or pass a session id (e.g. a session=... from an earlier result) to search exactly that one session.`,
     ``,
     `No need to confirm any path or database location — just call context_recall.`,
   ].join("\n")

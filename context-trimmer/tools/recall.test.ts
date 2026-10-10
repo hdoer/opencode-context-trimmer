@@ -120,12 +120,12 @@ async function run() {
     assert(out.includes("session=ses_other"), "scope:all should find other-project session")
   }
 
-  // 7) explicit sessionID targets exactly that session, bypassing scope.
+  // 7) scope can be a concrete session id — targets exactly that session.
   {
-    const out = await run({ query: "mysql", sessionID: "ses_other" })
-    assert(out.includes("session=ses_other"), "sessionID should hit the targeted session directly")
-    const miss = await run({ query: "webhook", sessionID: "ses_other" })
-    assert(miss.startsWith("No results"), "sessionID limits search to that one session")
+    const out = await run({ query: "mysql", scope: "ses_other" })
+    assert(out.includes("session=ses_other"), "session-id scope should hit that session directly")
+    const miss = await run({ query: "webhook", scope: "ses_other" })
+    assert(miss.startsWith("No results"), "session-id scope limits search to that one session")
     assert(miss.includes("ses_other"), "miss hint should name the targeted session")
   }
 

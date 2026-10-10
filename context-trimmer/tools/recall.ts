@@ -7,12 +7,8 @@
  * back on demand via the opencode client API (no SQL, no file paths) — it reads
  * exactly what was trimmed away.
  *
- * Targeting one session directly:
- *   - Pass `sessionID` to search exactly that session (e.g. an id seen in an
- *     earlier result's `session=...`). It bypasses `scope` entirely and is the
- *     cheapest, most precise lookup.
- *
- * Scope (three tiers, cheapest first; used only when `sessionID` is absent):
+ * Where to search — a single overloaded `scope` arg, either a keyword or a
+ * concrete session id (cheapest first):
  *   - "session" (default): only the running session. Fast and most relevant.
  *     The tool receives the live session id from its execute context, so
  *     subagents automatically search their OWN (child) session.
@@ -23,9 +19,12 @@
  *     reserved for when the user explicitly asks to search across projects —
  *     e.g. "we discussed X in some other repo, find it". Never pick "all" on
  *     your own just because a narrower scope came up empty.
+ *   - a session id ("ses_..." from an earlier result's `session=...`): search
+ *     exactly that one session — the most precise lookup. Any value other than
+ *     the three keywords is treated as a session id.
  *
- * How the tiers map onto the opencode client:
- *   - session: session.messages({ path: { id } }) for one id.
+ * How each resolves onto the opencode client:
+ *   - session / session id: session.messages({ path: { id } }) for one id.
  *   - project: session.list() (defaults to the server's project) -> messages.
  *   - all:     project.list() -> session.list({ query: { directory } }) per
  *              project worktree -> messages.
@@ -144,23 +143,17 @@ export function createRecallTool(client: OpencodeClient) {
       "Multiple space-separated words are AND-matched (case-insensitive).",
     args: {
       query: tool.schema.string().describe("Keyword(s) to search for. Space-separated words must all appear."),
-      sessionID: tool.schema
+      scope: tool.schema
         .string()
         .optional()
         .describe(
-          "Search exactly this one session id (e.g. from an earlier result's `session=...`). " +
-            "When set, `scope` is ignored — this is the cheapest, most precise lookup. " +
-            "Use it when you already know which session holds the content.",
-        ),
-      scope: tool.schema
-        .enum(["session", "project", "all"])
-        .optional()
-        .describe(
-          "Ignored when `sessionID` is set. " +
-            "session (default): only this session — fastest, most relevant. " +
-            "project: every session in the current project (sibling + subagent child sessions). " +
-            "all: every session across ALL projects on this machine — potentially expensive, " +
-            "so use it ONLY when the user explicitly asks to search across projects. " +
+          "Where to search. Either one of the keywords or a specific session id:\n" +
+            '  - "session" (default): this session only — fastest, most relevant.\n' +
+            '  - "project": every session in the current project (sibling + subagent child sessions).\n' +
+            '  - "all": every session across ALL projects on this machine — potentially expensive, ' +
+            "so use it ONLY when the user explicitly asks to search across projects.\n" +
+            '  - a session id (e.g. "ses_..." from an earlier result\'s `session=...`): search exactly ' +
+            "that one session — the cheapest, most precise lookup when you already know where the content is.\n" +
             "Do not escalate to a wider scope on your own just because a narrower one found nothing.",
         ),
     },
@@ -173,9 +166,13 @@ export function createRecallTool(client: OpencodeClient) {
         return "Empty query — provide at least one keyword."
       }
 
-      // An explicit session id is the most precise lookup; it bypasses scope.
-      const targetID = args.sessionID?.trim()
-      const scope = args.scope ?? "session"
+      // `scope` is overloaded: the three keywords, or a concrete session id.
+      // Any value other than a known keyword is treated as a session id and
+      // searched directly — the most precise lookup.
+      const raw = args.scope?.trim() || "session"
+      const isKeyword = raw === "session" || raw === "project" || raw === "all"
+      const targetID = isKeyword ? "" : raw
+      const scope = isKeyword ? raw : "session"
       let hits: SearchHit[] = []
 
       if (targetID) {

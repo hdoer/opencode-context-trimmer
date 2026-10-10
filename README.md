@@ -161,8 +161,7 @@ actually dropped, the inserted text looks like:
 
 When you need the trimmed-away information, call the context_recall tool to fetch the original text:
   - query: keywords to search for; space-separated words are AND-matched (case-insensitive).
-  - sessionID (optional): search exactly one session id (e.g. a session=... from an earlier result); ignores scope — the cheapest, most precise lookup.
-  - scope: default "session" (this session only, fastest and most relevant); use "project" to search every session in the current project (including subagent child sessions); use "all" ONLY when the user explicitly asks to search across projects (scans every project on the machine — expensive, don't escalate on your own).
+  - scope: where to search — a keyword or a session id. "session" (default): this session only, fastest and most relevant. "project": every session in the current project (including subagent child sessions). "all": every session across all projects on the machine — expensive, use ONLY when the user explicitly asks to search across projects, don't escalate on your own. Or pass a session id (e.g. a session=... from an earlier result) to search exactly that one session.
 
 No need to confirm any path or database location — just call context_recall.
 ```
@@ -325,10 +324,8 @@ history on disk. The plugin registers a `context_recall` tool so the model can
 fetch trimmed-away content on demand:
 
 - `query` — keywords; space-separated words are AND-matched (case-insensitive).
-- `sessionID` — optional. Target exactly this session id (e.g. the id shown as
-  `session=...` in an earlier result). When set, it **searches that one session
-  only and ignores `scope`** — the cheapest, most precise lookup.
-- `scope` — used when `sessionID` is absent; three tiers, narrow to wide:
+- `scope` — where to search; a single overloaded value, either a keyword or a
+  concrete session id, narrow to wide:
   - `session` (default) — the current session only, fastest and most relevant.
   - `project` — every session in the current project (sibling + subagent child
     sessions).
@@ -336,6 +333,9 @@ fetch trimmed-away content on demand:
     (it scans the whole history when nothing matches), so use it only when you
     explicitly ask to search across projects; the model won't escalate to `all`
     on its own just because a narrower scope found nothing.
+  - a specific session id (e.g. `ses_...`) — search exactly that one session,
+    the most precise lookup. Any value other than the three keywords is treated
+    as a session id.
 
 `scope: all` has a handy use: when you remember discussing a topic but can't
 recall which project/session it was in — explicitly ask the model to search

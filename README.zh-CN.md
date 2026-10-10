@@ -129,8 +129,7 @@ context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉
 
 When you need the trimmed-away information, call the context_recall tool to fetch the original text:
   - query: keywords to search for; space-separated words are AND-matched (case-insensitive).
-  - sessionID (optional): search exactly one session id (e.g. a session=... from an earlier result); ignores scope — the cheapest, most precise lookup.
-  - scope: default "session" (this session only, fastest and most relevant); use "project" to search every session in the current project (including subagent child sessions); use "all" ONLY when the user explicitly asks to search across projects (scans every project on the machine — expensive, don't escalate on your own).
+  - scope: where to search — a keyword or a session id. "session" (default): this session only, fastest and most relevant. "project": every session in the current project (including subagent child sessions). "all": every session across all projects on the machine — expensive, use ONLY when the user explicitly asks to search across projects, don't escalate on your own. Or pass a session id (e.g. a session=... from an earlier result) to search exactly that one session.
 
 No need to confirm any path or database location — just call context_recall.
 ```
@@ -268,13 +267,13 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
 `context_recall` 工具，让模型可以按需取回被裁掉的内容：
 
 - `query` —— 关键词；以空格分隔的多个词按"与"匹配（大小写不敏感）。
-- `sessionID` —— 可选。直接指定要查的会话 id（例如上一次结果里 `session=...` 给出的 id）。
-  传了它就**只查这一个会话、忽略 `scope`**，是最省、最精准的定点查法。
-- `scope` —— 未指定 `sessionID` 时生效，三档从窄到宽：
+- `scope` —— 查哪里；单个重载参数，既可传关键字，也可直接传会话 id，从窄到宽：
   - `session`（默认）—— 仅当前会话，最快、最相关。
   - `project` —— 当前项目的全部会话（含兄弟会话与 subagent 子会话）。
   - `all` —— 本机**所有项目**的全部会话。可能较慢（无命中时会扫全库），
     因此仅在你明确要求跨项目查找时才用；模型不会因为窄范围没查到就自行升级到 `all`。
+  - 会话 id（形如 `ses_...`）—— 只查这一个会话，最精准的定点查法。
+    非上述三个关键字的值都会被当作会话 id 处理。
 
 `scope: all` 有个顺手的用法：有时你记得聊过某个话题，却想不起在哪个项目/会话里——
 明确让模型用 `all` 跨所有项目按关键词检索，就能把那段对话捞回来，不必翻遍历史。
