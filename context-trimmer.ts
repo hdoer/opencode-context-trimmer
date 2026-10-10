@@ -37,6 +37,7 @@ export const ContextTrimmer: Plugin = async ({ client }) => {
     recentFullTurns: cfg.recentFullTurns,
     priorTrimmedTurns: cfg.priorTrimmedTurns,
     cacheAwareMinutes: cfg.cacheAwareMinutes,
+    hardTriggerTurns: cfg.hardTriggerTurns,
     breadcrumbUserMessages: cfg.breadcrumbUserMessages,
     breadcrumbMaxTokens: cfg.breadcrumbMaxTokens,
   })

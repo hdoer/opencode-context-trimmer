@@ -22,7 +22,7 @@ opencode 对模型是无状态的：每次请求都会把整段对话历史重�
   - 更早的全部**丢弃**（但可保留面包屑，见下）。
 - 裁剪边界是**粘性的**：固定在 `c - (recentFullTurns + priorTrimmedTurns)`，
   随对话增长保持不动，使序列化后的前缀保持逐字节稳定，从而不破坏上游的 prompt 缓存。
-  只有当活跃轮数再次超过 `threshold` 时，边界才会向前跳。
+  只有当活跃轮数再次超过 `threshold` 时，边界才会向前跳（受缓存门控与硬上限约束，见下）。
 
 裁剪后会在第一条保留的用户消息里合并一段提示，告诉模型较早的上下文已被裁剪，
 以及如何取回（见下方工具）。
@@ -90,6 +90,16 @@ opencode 对模型是无状态的：每次请求都会把整段对话历史重�
 `cacheAwareMinutes` 会推迟触发，直到会话空闲至少这么多分钟——那时缓存本就已过期，
 因此不会付出额外的缓存未命中代价。活跃对话期间裁剪会被推迟；设为 `0` 则命中阈值即裁。
 
+#### 硬上限兜底（`hardTriggerTurns`）
+
+缓存门控有一个风险：**持续高频工作**时，每次请求的间隔都小于 `cacheAwareMinutes`，
+门控会把触发无限期推迟——粘性边界永不前移，保留区每轮增长一轮、无上限累积，
+最终撑爆模型上下文窗口（表现为上游返回 `The request exceeds the model context window`）。
+
+`hardTriggerTurns` 是防溢出兜底：当活跃轮数超过它时，即便缓存仍"热"也强制前移边界
+（以一次缓存未命中换取避免硬性溢出）。默认 `0` 表示自动取 `threshold * 2`。
+
+
 ## 安装
 
 ### 方式一：npm 包（推荐）
@@ -143,6 +153,7 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
   "recentFullTurns": 5,
   "priorTrimmedTurns": 5,
   "cacheAwareMinutes": 5,
+  "hardTriggerTurns": 0,
   "breadcrumbUserMessages": 100,
   "breadcrumbMaxTokens": 100
 }
@@ -155,6 +166,7 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
 | `recentFullTurns` | `5` | 最近完整保留的轮数。 |
 | `priorTrimmedTurns` | `5` | 再往前只保留"用户输入 + 最终输出"的轮数。 |
 | `cacheAwareMinutes` | `5` | 会话空闲达到这么多分钟（缓存已过期）后才（重新）触发。`0` 关闭该门控。 |
+| `hardTriggerTurns` | `0` | 防溢出硬上限：活跃轮数超过它时无视缓存门控强制前移边界。`0` 表示自动取 `threshold * 2`。 |
 | `breadcrumbUserMessages` | `100` | 被丢弃区域中保留为面包屑的最近用户消息条数。`0` 关闭。 |
 | `breadcrumbMaxTokens` | `100` | 每条面包屑最多保留的 token 数（按 ≈3.5 字节/token 换算，在字符边界处截断）。 |
 

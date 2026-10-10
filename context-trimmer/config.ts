@@ -38,6 +38,14 @@ export interface TrimmerConfig {
    */
   cacheAwareMinutes: number
   /**
+   * Hard safety cap (in active turns) overriding the cache-aware gate. During
+   * continuous work the gate can defer trimming forever, letting the kept region
+   * grow unbounded until the model context window overflows. Once active turns
+   * exceed this cap, the boundary advances even while the cache is still hot.
+   * Set to 0 to derive it automatically as `threshold * 2`.
+   */
+  hardTriggerTurns: number
+  /**
    * How many of the MOST RECENT user messages from the dropped region (turns
    * before the kept window) to preserve as short "breadcrumbs", so the agent
    * still has a trail of what was discussed earlier. Set to 0 to disable.
@@ -58,6 +66,7 @@ export const DEFAULT_CONFIG: TrimmerConfig = {
   recentFullTurns: 5,
   priorTrimmedTurns: 5,
   cacheAwareMinutes: 5,
+  hardTriggerTurns: 0,
   breadcrumbUserMessages: 100,
   breadcrumbMaxTokens: 100,
 }
@@ -82,6 +91,7 @@ export function normalize(raw: unknown): TrimmerConfig {
     recentFullTurns: intField(o.recentFullTurns, DEFAULT_CONFIG.recentFullTurns, 0),
     priorTrimmedTurns: intField(o.priorTrimmedTurns, DEFAULT_CONFIG.priorTrimmedTurns, 0),
     cacheAwareMinutes: intField(o.cacheAwareMinutes, DEFAULT_CONFIG.cacheAwareMinutes, 0),
+    hardTriggerTurns: intField(o.hardTriggerTurns, DEFAULT_CONFIG.hardTriggerTurns, 0),
     breadcrumbUserMessages: intField(o.breadcrumbUserMessages, DEFAULT_CONFIG.breadcrumbUserMessages, 0),
     breadcrumbMaxTokens: intField(o.breadcrumbMaxTokens, DEFAULT_CONFIG.breadcrumbMaxTokens, 0),
   }

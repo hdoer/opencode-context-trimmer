@@ -52,6 +52,19 @@ export interface TurnWindowOptions {
    */
   cacheAwareMinutes?: number
   /**
+   * Hard safety cap (in active turns) that overrides the cache-aware gate.
+   *
+   * The gate defers a (re)trigger while the session stays "hot" (idle below
+   * cacheAwareMinutes). During CONTINUOUS work — every request lands within that
+   * window — the gate would defer forever, so the pinned boundary never advances
+   * and the kept region grows one turn per request without bound, eventually
+   * overflowing the model context window. This cap breaks that loop: once active
+   * turns exceed it, the boundary jumps even while the cache is hot (accepting one
+   * cache miss to avoid a hard context-window overflow). Defaults to
+   * `threshold * 2` when unset/<=0.
+   */
+  hardTriggerTurns?: number
+  /**
    * How many of the MOST RECENT user messages from the DROPPED region (turns
    * before the boundary) to preserve as short "breadcrumbs" so the agent keeps a
    * trail of what was discussed earlier. 0 disables breadcrumbs.
@@ -300,6 +313,7 @@ export function turnWindow(options: TurnWindowOptions | (() => TurnWindowOptions
       const keepTurns = recentFullTurns + priorTrimmedTurns
       const noticeOption = opts.notice ?? DEFAULT_NOTICE
       const cacheAwareMinutes = opts.cacheAwareMinutes ?? 0
+      const hardTriggerTurns = opts.hardTriggerTurns && opts.hardTriggerTurns > 0 ? opts.hardTriggerTurns : threshold * 2
       const breadcrumbUserMessages = opts.breadcrumbUserMessages ?? 0
       const breadcrumbMaxTokens = opts.breadcrumbMaxTokens ?? 0
       const now = opts.now ?? Date.now
@@ -335,11 +349,14 @@ export function turnWindow(options: TurnWindowOptions | (() => TurnWindowOptions
       // (Re)trigger: pin a fresh boundary at c-10. Both the first trigger and a
       // re-trigger jump the boundary and change the serialized prefix, busting
       // the upstream prompt cache. The cache-aware gate defers that jump while
-      // the cache is likely still hot (session idle below cacheAwareMinutes).
+      // the cache is likely still hot (session idle below cacheAwareMinutes) —
+      // EXCEPT when active turns have grown past the hard cap, where deferring
+      // further would risk a context-window overflow, so we jump regardless.
       if (activeTurns > threshold) {
         const idleMs = prevSeenMs === undefined ? Infinity : nowMs - prevSeenMs
         const cacheHot = cacheAwareMinutes > 0 && idleMs < cacheAwareMinutes * 60_000
-        if (!cacheHot) {
+        const hardOverflow = activeTurns > hardTriggerTurns
+        if (!cacheHot || hardOverflow) {
           const currentIndex = turns.length - 1 // c
           const newBoundary = Math.max(0, currentIndex - keepTurns)
           state = { boundaryId: turnId(turns[newBoundary]), trimmedCount: priorTrimmedTurns }

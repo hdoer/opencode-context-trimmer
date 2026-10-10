@@ -166,7 +166,7 @@
   <div class="section">
     <div class="row-title">裁剪后 <small>只发送粘性窗口内的轮次</small></div>
     <div class="turns" id="after"></div>
-    <div class="boundary-note">粘性边界固定在 <b>c − (recentFullTurns + priorTrimmedTurns)</b>，随对话增长保持不动，保证前缀逐字节稳定、不破坏 prompt 缓存。</div>
+    <div class="boundary-note">粘性边界固定在 <b>c − (recentFullTurns + priorTrimmedTurns)</b>，随对话增长保持不动，保证前缀逐字节稳定、不破坏 prompt 缓存。持续高频工作时，缓存门控可能把边界无限期冻结导致保留区膨胀溢出上下文窗口；<b>hardTriggerTurns</b>（默认 threshold×2）作为兜底，活跃轮数超过它时无视缓存强制前移边界。</div>
     <div class="regions">
       <div class="region drop" style="flex:2">
         <div class="rname">丢弃区（Dropped）</div>

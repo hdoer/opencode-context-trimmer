@@ -160,6 +160,69 @@ function convo(n: number): ChatMessage[] {
   assertEq(userIds(out)[0], "u11", "gate disabled: triggers immediately regardless of idle")
 }
 
+// ---------- Test 7b: hard cap forces (re)trigger even while cache is hot ----------
+{
+  // Continuous work: every request lands within cacheAwareMinutes, so the gate
+  // would normally defer forever. hardTriggerTurns caps that: once active turns
+  // exceed it, the boundary advances despite the hot cache.
+  let t = 9_000_000
+  const strat = turnWindow({
+    threshold: 20,
+    recentFullTurns: 5,
+    priorTrimmedTurns: 5,
+    cacheAwareMinutes: 5,
+    hardTriggerTurns: 25,
+    now: () => t,
+  })
+  const ctx = { sessionID: "hardcap" } as any
+
+  strat.apply(convo(20), ctx)
+
+  // 21..25: threshold crossed but cache hot and under the hard cap -> deferred.
+  for (let n = 21; n <= 25; n++) {
+    t += 30_000 // 30s between requests: always hot
+    const out = strat.apply(convo(n), ctx)
+    assertEq(out.length, n * 2, `n=${n}: under hard cap, deferred (untouched)`)
+    assert(!anyNotice(out), `n=${n}: no notice while deferred`)
+  }
+
+  // 26: active turns (26) now exceed hardTriggerTurns=25 -> force trigger even hot.
+  t += 30_000
+  let out = strat.apply(convo(26), ctx)
+  assertEq(userIds(out)[0], "u16", "hard cap: forced trigger, boundary at c-10 (u16 for n=26)")
+  assert(anyNotice(out), "hard cap: notice present after forced trigger")
+
+  // Boundary holds afterwards until the cap is exceeded again (kept region bounded).
+  t += 30_000
+  out = strat.apply(convo(27), ctx)
+  assertEq(userIds(out)[0], "u16", "hard cap: boundary stable after forced trigger")
+}
+
+// ---------- Test 7c: default hard cap is threshold*2 ----------
+{
+  let t = 11_000_000
+  const strat = turnWindow({
+    threshold: 10,
+    recentFullTurns: 3,
+    priorTrimmedTurns: 2,
+    cacheAwareMinutes: 5,
+    now: () => t, // hardTriggerTurns unset -> defaults to threshold*2 = 20
+  })
+  const ctx = { sessionID: "defcap" } as any
+
+  strat.apply(convo(10), ctx)
+  // 11..20: over threshold, hot, but at/under default cap 20 -> deferred.
+  for (let n = 11; n <= 20; n++) {
+    t += 10_000
+    const out = strat.apply(convo(n), ctx)
+    assertEq(out.length, n * 2, `n=${n}: under default cap, deferred`)
+  }
+  // 21: exceeds default cap 20 -> forced trigger. keepTurns=5 -> boundary at c-5 = u16.
+  t += 10_000
+  const out = strat.apply(convo(21), ctx)
+  assertEq(userIds(out)[0], "u16", "default cap threshold*2: forced trigger at n=21 (boundary u16)")
+}
+
 // ---------- Test 8: breadcrumbs preserve recent dropped user messages ----------
 {
   // Build a convo where dropped user messages carry distinctive text.

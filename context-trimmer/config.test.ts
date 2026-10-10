@@ -14,17 +14,19 @@ assert(DEFAULT_CONFIG.threshold === 20, "default threshold=20")
 assert(DEFAULT_CONFIG.recentFullTurns === 5, "default recentFullTurns=5")
 assert(DEFAULT_CONFIG.priorTrimmedTurns === 5, "default priorTrimmedTurns=5")
 assert(DEFAULT_CONFIG.cacheAwareMinutes === 5, "default cacheAwareMinutes=5 (cache-protected)")
+assert(DEFAULT_CONFIG.hardTriggerTurns === 0, "default hardTriggerTurns=0 (derive threshold*2)")
 assert(DEFAULT_CONFIG.breadcrumbUserMessages === 100, "default breadcrumbUserMessages=100")
 assert(DEFAULT_CONFIG.breadcrumbMaxTokens === 100, "default breadcrumbMaxTokens=100")
 
 // 2) normalize: a valid object passes through.
 {
-  const cfg = normalize({ enabled: false, threshold: 30, recentFullTurns: 8, priorTrimmedTurns: 3, cacheAwareMinutes: 5, breadcrumbUserMessages: 50, breadcrumbMaxTokens: 40 })
+  const cfg = normalize({ enabled: false, threshold: 30, recentFullTurns: 8, priorTrimmedTurns: 3, cacheAwareMinutes: 5, hardTriggerTurns: 40, breadcrumbUserMessages: 50, breadcrumbMaxTokens: 40 })
   assert(cfg.enabled === false, "enabled false honored")
   assert(cfg.threshold === 30, "threshold honored")
   assert(cfg.recentFullTurns === 8, "recentFullTurns honored")
   assert(cfg.priorTrimmedTurns === 3, "priorTrimmedTurns honored")
   assert(cfg.cacheAwareMinutes === 5, "cacheAwareMinutes honored")
+  assert(cfg.hardTriggerTurns === 40, "hardTriggerTurns honored")
   assert(cfg.breadcrumbUserMessages === 50, "breadcrumbUserMessages honored")
   assert(cfg.breadcrumbMaxTokens === 40, "breadcrumbMaxTokens honored")
 }
