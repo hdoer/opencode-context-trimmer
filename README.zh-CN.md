@@ -120,18 +120,19 @@ context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉
 默认配置下、且确有更早消息被丢弃时，插入的完整文本形如：
 
 ```text
-[context-trimmer] 以下是更早对话中被裁剪的用户消息摘要（每条已截断，仅供回忆线索）：
-  1. 帮我修复登录页面的报错，点击提交时报 500 …
-  2. 数据库连接池配置在哪个文件里 …
-  3. 把那个函数改成异步的，然后加上重试 …
+[context-trimmer] Summaries of earlier user messages that were trimmed (each truncated, as recall hints only):
+  1. Help me fix the error on the login page — clicking submit returns a 500 …
+  2. Which file holds the database connection pool config …
+  3. Make that function async, then add retries …
 
-[context-trimmer] 较早的上下文已被裁剪，但完整历史仍完整保存，可随时检索。
+[context-trimmer] Earlier context has been trimmed, but the full history is still saved in full and can be searched anytime.
 
-当你需要被裁剪掉的信息时，调用 context_recall 工具即可取回原文：
-  - query：要找的关键词，多个词用空格分隔（大小写不敏感，须全部命中）。
-  - scope：默认 "session"（只查本会话，最快最相关）；本会话查不到用 "project"（查当前项目全部会话，含 subagent 子会话）；仅当用户明确要跨项目查找时才用 "all"（扫本机所有项目，开销较大，不要自行升级）。
+When you need the trimmed-away information, call the context_recall tool to fetch the original text:
+  - query: keywords to search for; space-separated words are AND-matched (case-insensitive).
+  - sessionID (optional): search exactly one session id (e.g. a session=... from an earlier result); ignores scope — the cheapest, most precise lookup.
+  - scope: default "session" (this session only, fastest and most relevant); use "project" to search every session in the current project (including subagent child sessions); use "all" ONLY when the user explicitly asks to search across projects (scans every project on the machine — expensive, don't escalate on your own).
 
-无需人工确认路径或数据库位置——直接调用 context_recall 即可。
+No need to confirm any path or database location — just call context_recall.
 ```
 
 组成与边界情况：

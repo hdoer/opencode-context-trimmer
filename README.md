@@ -161,7 +161,8 @@ actually dropped, the inserted text looks like:
 
 When you need the trimmed-away information, call the context_recall tool to fetch the original text:
   - query: keywords to search for; space-separated words are AND-matched (case-insensitive).
-  - scope: default "session" (this session only, fastest and most relevant); use "project" if the session has no match (searches every session in the current project, including subagent child sessions); use "all" only when the user explicitly asks to search across projects (scans every project on the machine, which is expensive — don't escalate on your own).
+  - sessionID (optional): search exactly one session id (e.g. a session=... from an earlier result); ignores scope — the cheapest, most precise lookup.
+  - scope: default "session" (this session only, fastest and most relevant); use "project" to search every session in the current project (including subagent child sessions); use "all" ONLY when the user explicitly asks to search across projects (scans every project on the machine — expensive, don't escalate on your own).
 
 No need to confirm any path or database location — just call context_recall.
 ```
