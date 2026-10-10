@@ -19,9 +19,9 @@
  *     reserved for when the user explicitly asks to search across projects —
  *     e.g. "we discussed X in some other repo, find it". Never pick "all" on
  *     your own just because a narrower scope came up empty.
- *   - a session id ("ses_..." from an earlier result's `session=...`): search
- *     exactly that one session — the most precise lookup. Any value other than
- *     the three keywords is treated as a session id.
+ *   - a session id (e.g. "ses_..."): search exactly that one session — the most
+ *     precise lookup. Any value other than the three keywords is treated as a
+ *     session id.
  *
  * How each resolves onto the opencode client:
  *   - session / session id: session.messages({ path: { id } }) for one id.
@@ -152,8 +152,8 @@ export function createRecallTool(client: OpencodeClient) {
             '  - "project": every session in the current project (sibling + subagent child sessions).\n' +
             '  - "all": every session across ALL projects on this machine — potentially expensive, ' +
             "so use it ONLY when the user explicitly asks to search across projects.\n" +
-            '  - a session id (e.g. "ses_..." from an earlier result\'s `session=...`): search exactly ' +
-            "that one session — the cheapest, most precise lookup when you already know where the content is.\n" +
+            '  - a session id (e.g. "ses_..."): search exactly ' +
+            "that one session — the most precise lookup when you already know where the content is.\n" +
             "Do not escalate to a wider scope on your own just because a narrower one found nothing.",
         ),
     },
