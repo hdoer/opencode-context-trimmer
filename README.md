@@ -16,7 +16,7 @@
 <table align="center">
 <tr>
 <td align="center">🌊<br/><b>无限上下文</b><br/><sub>会话长度不再受窗口约束</sub></td>
-<td align="center">💸<br/><b>零额外费用</b><br/><sub>不调模型做摘要</sub></td>
+<td align="center">💸<br/><b>越聊越省</b><br/><sub>不重发冗余历史，账单不滚雪球</sub></td>
 <td align="center">⚡<br/><b>零额外延时</b><br/><sub>进程内同步重写</sub></td>
 <td align="center">🎯<br/><b>缓存无损</b><br/><sub>不破坏 prompt 缓存</sub></td>
 <td align="center">🔎<br/><b>可随时召回</b><br/><sub>信息永不真正丢失</sub></td>
@@ -43,6 +43,10 @@
 
 opencode 对模型**无状态**：每次请求都重发整段历史。会话越长，重复发送的 token 越多——
 几万、几十万，直到某次请求 `exceeds the model context window`，对话戛然而止。
+
+而这每一次重发，都在**真金白银地计费**。一个几百轮的会话，光是反复上送早已无关的旧工具输出，
+就能烧掉成倍的输入 token。context-trimmer 在发出前就地裁掉这些冗余——**裁掉的 token 不上送，
+不上送就不计费**。会话越长，省得越多；省下的不是摘要费，而是本就不该付的重复账单。
 
 常见的「压缩/总结」方案要**额外调一次模型**生成摘要：花钱、增延时、还把原文揉成有损概要。
 context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉冗余轮次，不调模型、不丢原文。
