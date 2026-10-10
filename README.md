@@ -17,7 +17,7 @@
 <tr>
 <td align="center">🌊<br/><b>无限上下文</b><br/><sub>会话长度不再受窗口约束</sub></td>
 <td align="center">💸<br/><b>成本不失控</b><br/><sub>不重发冗余历史，账单不滚雪球</sub></td>
-<td align="center">⚡<br/><b>零额外延时</b><br/><sub>进程内同步重写</sub></td>
+<td align="center">⚡<br/><b>零额外延时</b><br/><sub>本地瞬时完成，不多等一次模型往返</sub></td>
 <td align="center">🎯<br/><b>缓存无损</b><br/><sub>不破坏 prompt 缓存</sub></td>
 <td align="center">🔎<br/><b>可随时召回</b><br/><sub>信息永不真正丢失</sub></td>
 </tr>
