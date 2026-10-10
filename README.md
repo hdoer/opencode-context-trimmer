@@ -2,30 +2,33 @@
 
 # ⛲ context-trimmer
 
-### 给 [opencode](https://opencode.ai) 装上「无限上下文」
+### Give [opencode](https://opencode.ai) an "infinite context"
 
-任意长会话也不撞上下文窗口上限。完整历史留在本地，模型按需取回。
+Never hit the context-window ceiling, no matter how long the session runs.
+The full history stays on disk; the model fetches it back on demand.
 
 [![npm](https://img.shields.io/npm/v/opencode-context-trimmer?color=cb3837&logo=npm)](https://www.npmjs.com/package/opencode-context-trimmer)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![opencode plugin](https://img.shields.io/badge/opencode-plugin-000000)](https://opencode.ai/docs/plugins/)
 [![runtime](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 
+**English** · [简体中文](./README.zh-CN.md)
+
 </div>
 
 <table align="center">
 <tr>
-<td align="center">🌊<br/><b>无限上下文</b><br/><sub>一直聊下去，不会被上下文上限打断</sub></td>
-<td align="center">💸<br/><b>不花冤枉钱</b><br/><sub>旧历史不反复重发，就不反复计费</sub></td>
-<td align="center">⚡<br/><b>零延时</b><br/><sub>本地瞬时完成，没有额外的模型调用</sub></td>
-<td align="center">🎯<br/><b>缓存无损</b><br/><sub>不破坏 prompt 缓存</sub></td>
-<td align="center">🔎<br/><b>可随时召回</b><br/><sub>裁掉的内容仍可按需取回，还能跨项目检索</sub></td>
+<td align="center">🌊<br/><b>Infinite context</b><br/><sub>Keep chatting — never cut off by the context limit</sub></td>
+<td align="center">💸<br/><b>No wasted spend</b><br/><sub>Old history isn't resent, so it isn't re-billed</sub></td>
+<td align="center">⚡<br/><b>Zero latency</b><br/><sub>Instant, local — no extra model call</sub></td>
+<td align="center">🎯<br/><b>Cache-safe</b><br/><sub>Doesn't break the prompt cache</sub></td>
+<td align="center">🔎<br/><b>Always recallable</b><br/><sub>Trimmed content is fetchable on demand, even across projects</sub></td>
 </tr>
 </table>
 
 ---
 
-## 60 秒上手
+## 60-second start
 
 ```jsonc
 // ~/.config/opencode/opencode.json
@@ -35,148 +38,197 @@
 }
 ```
 
-重启 opencode，完成。默认开箱即用，无需配置。想微调见 [配置](#配置)。
+Restart opencode — done. Works out of the box with no configuration. To tune it, see [Configuration](#configuration).
 
 ---
 
-## 为什么
+## Why
 
-opencode 对模型**无状态**：每次请求都重发整段历史。会话越长，重复发送的 token 越多——
-几万、几十万，直到某次请求 `exceeds the model context window`，对话戛然而止。
+opencode is **stateless** toward the model: every request resends the entire
+history. The longer the session, the more tokens are resent — tens of thousands,
+hundreds of thousands — until one request `exceeds the model context window` and
+the conversation stops dead.
 
-而这每一次重发，都在**真金白银地计费**。会话越长，反复上送早已无关的旧工具输出，
-输入 token 就越滚越多，账单随之水涨船高。context-trimmer 在发出前就地裁掉这些冗余——
-**裁掉的 token 不上送，不上送就不计费**。它不会让总成本下降，但能摁住「越聊越贵」的失控曲线，
-让长会话的开销维持在一个大致稳定的区间。
+And every one of those resends is **billed, for real money**. The longer the
+session, the more stale old tool output you keep re-uploading, the more input
+tokens pile up and the higher the bill climbs. context-trimmer trims that
+redundancy in place before the request goes out — **tokens that are trimmed
+aren't sent, and what isn't sent isn't billed**. It won't make your total cost go
+*down*, but it tames the "pricier the longer you chat" runaway curve and keeps a
+long session's cost in a roughly stable band.
 
-常见的「压缩/总结」方案要**额外调一次模型**生成摘要：花钱、增延时、还把原文揉成有损概要。
-context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉冗余轮次，不调模型、不丢原文。
+The common "compaction/summarization" approach makes an **extra model call** to
+produce a summary: it costs money, adds latency, and mangles the original into a
+lossy digest. context-trimmer takes another road — **pure message rewriting** —
+trimming redundant turns in place before sending, with no model call and no loss
+of the original.
 
-| | 压缩/总结 | **context-trimmer** |
+| | Compaction/summary | **context-trimmer** |
 |---|---|---|
-| 额外 token 费用 | ❌ 每次都调模型 | ✅ 零 |
-| 额外延时 | ❌ 额外调一次模型 | ✅ 本地瞬时完成 |
-| 原文保真 | ❌ 有损概要 | ✅ 完整留本地 |
-| prompt 缓存 | ❌ 前缀重写、失效 | ✅ 粘性边界、无损 |
-| 信息找回 | ❌ 无法还原 | ✅ `context_recall` 取回 |
+| Extra token cost | ❌ A model call every time | ✅ Zero |
+| Extra latency | ❌ One more model round-trip | ✅ Instant, local |
+| Fidelity | ❌ Lossy digest | ✅ Original kept in full on disk |
+| Prompt cache | ❌ Prefix rewritten, invalidated | ✅ Sticky boundary, intact |
+| Information recovery | ❌ Cannot be restored | ✅ Fetched back via `context_recall` |
 
-### 符合「局部性原理」
+### It follows the "principle of locality"
 
-模型当前最需要的，几乎总是**最近几轮**；越久远越少被引用。裁剪因此恰如 CPU 多级缓存：
-**最近轮次**常驻快表（完整发送），**较早轮次**降级摘要，**久远轮次**退回主存（本地磁盘），
-需要时再用 `context_recall` 换页取回。用极小的召回成本，换一个看似「无限大」的上下文。
+What the model needs most is almost always the **most recent turns**; the older
+something is, the less it gets referenced. Trimming therefore mirrors a CPU's
+multi-level cache: **recent turns** stay in fast memory (sent in full), **earlier
+turns** are demoted to a summary, and **distant turns** are paged back to main
+memory (local disk), fetched on demand with `context_recall`. A tiny recall cost
+buys a context that feels effectively "infinite."
 
-## 工作原理
+## How it works
 
-![turn-window 裁剪策略示意图](docs/assets/turn-window.png)
+![turn-window trimming strategy diagram](docs/assets/turn-window.png)
 
-插件挂载 `experimental.chat.messages.transform` 钩子（重写待发送消息的时机），
-应用一个可插拔的**策略（strategy）**。内置且默认的唯一策略是 `turn-window`：
+The plugin hooks `experimental.chat.messages.transform` (the point where
+outgoing messages can be rewritten) and applies a pluggable **strategy**. The
+built-in, default, and only strategy is `turn-window`:
 
-- 一**轮（turn）** = 一条或多条连续的用户消息，加上回应它们的助手消息。
-  连续的用户消息会被合并成一轮（以吸收轮次中途"排队"发出的消息）。
-- 当活跃轮数超过 `threshold` 时触发裁剪：
-  - 最近 `recentFullTurns` 轮**完整保留**（用户输入 + 工具循环 + 最终回答）；
-  - 再往前的 `priorTrimmedTurns` 轮只保留**用户输入 + 助手最终文本**（丢弃工具循环）；
-  - 更早的全部**丢弃**（但可保留面包屑，见下）。
-- 裁剪边界是**粘性的**：固定在 `c - (recentFullTurns + priorTrimmedTurns)`，
-  随对话增长保持不动，使序列化后的前缀保持逐字节稳定，从而不破坏上游的 prompt 缓存。
-  只有当活跃轮数再次超过 `threshold` 时，边界才会向前跳（受缓存门控与硬上限约束，见下）。
+- A **turn** = one or more consecutive user messages plus the assistant messages
+  that answer them. Consecutive user messages are merged into one turn (to absorb
+  messages "queued up" mid-turn).
+- Trimming triggers when the active turn count exceeds `threshold`:
+  - the most recent `recentFullTurns` turns are **kept in full** (user input +
+    tool loop + final answer);
+  - the `priorTrimmedTurns` turns before those keep only **user input + the
+    assistant's final text** (the tool loop is dropped);
+  - everything older is **dropped** (breadcrumbs may be kept — see below).
+- The trim boundary is **sticky**: pinned at `c - (recentFullTurns +
+  priorTrimmedTurns)`, it stays put as the conversation grows so the serialized
+  prefix remains byte-for-byte stable, which keeps the upstream prompt cache
+  intact. The boundary only jumps forward when the active turn count exceeds
+  `threshold` again (subject to the cache gate and hard cap below).
 
-裁剪后会在第一条保留的用户消息里合并一段提示，告诉模型较早的上下文已被裁剪，
-以及如何取回（见下方工具）。
+After trimming, a notice is merged into the first retained user message, telling
+the model that earlier context was trimmed and how to fetch it back (see the tool
+below).
 
-### 面包屑（保留被丢弃的用户消息摘要）
+### Breadcrumbs (keeping summaries of dropped user messages)
 
-> "面包屑" 这个名字来自童话《韩塞尔与格蕾特》：兄妹俩被带进森林前，沿路撒下面包屑，
-> 好顺着这串痕迹找到回家的路。这里的道理相同——完整历史被丢弃后，我们沿途留下每条旧
-> 用户消息的简短摘要（截断过的"碎屑"），让模型顺着线索回忆起"早先聊过什么"，而不至于断片。
+> The name "breadcrumbs" comes from the fairy tale *Hansel and Gretel*: before
+> being led into the forest, the siblings scatter breadcrumbs along the path so
+> they can follow the trail home. The idea here is the same — once the full
+> history is dropped, we leave behind a short summary (a truncated "crumb") of
+> each old user message, so the model can follow the trail and recall "what we
+> talked about earlier" instead of going blank.
 
-被丢弃区域里最近的若干条**用户消息**会被保留为简短"面包屑"，合并进那段提示里，
-让模型即便看不到完整历史也有一条回忆线索、不至于完全断片。
+The most recent handful of **user messages** in the dropped region are kept as
+short "breadcrumbs," merged into that notice, so even without the full history
+the model has a thread to follow and doesn't lose the plot entirely.
 
-- `breadcrumbUserMessages`：保留被丢弃区域中最近多少条用户消息（默认 `100`，`0` 关闭）。
-- `breadcrumbMaxTokens`：每条最多保留多少个 token，超出截断并加省略号（默认 `100`）。
+- `breadcrumbUserMessages`: how many of the most recent user messages in the
+  dropped region to keep (default `100`, `0` disables).
+- `breadcrumbMaxTokens`: how many tokens to keep per message; longer ones are
+  truncated with an ellipsis (default `100`).
 
-#### 截断规则
+#### Truncation rules
 
-每条面包屑按 **token** 数截断（按 1 token ≈ 3.5 个 UTF-8 字节估算，换算成字节预算），
-不依赖任何分词库：
+Each breadcrumb is truncated by **token** count (estimated at 1 token ≈ 3.5
+UTF-8 bytes, converted to a byte budget), without relying on any tokenizer
+library:
 
-- 逐字符累加字节数，当加上某个字符会**超过**预算时，就在该字符之前停下。
-- **绝不切半个字符**：截断点始终落在字符边界上，一个多字节字符（如 3 字节的汉字、
-  或 emoji 这类代理对）要么整体保留、要么整体丢弃，结果始终是合法 UTF-8。
-- 发生截断时在末尾追加省略号 `…`。
+- Bytes are accumulated character by character; when adding a character would
+  **exceed** the budget, it stops before that character.
+- **Never splits a character in half**: the cut always lands on a character
+  boundary — a multi-byte character (a 3-byte Chinese character, or a surrogate
+  pair like an emoji) is kept whole or dropped whole, so the result is always
+  valid UTF-8.
+- When truncation happens, an ellipsis `…` is appended.
 
-例如预算 3 token（≈10 字节）、内容 `帮我修复登录`（每字 3 字节）：留下 `帮我修`（9 字节），
-第 4 个字会到 12 字节超预算，于是截断为 `帮我修 …`。
+For example, with a 3-token budget (≈10 bytes) and content `帮我修复登录` (3
+bytes per character): it keeps `帮我修` (9 bytes); the 4th character would reach
+12 bytes and exceed the budget, so it's truncated to `帮我修 …`.
 
-#### 组装后的完整提示词
+#### The assembled notice
 
-裁剪触发后，插件会把「面包屑块」和「裁剪提示」用一个空行拼接，作为一个合成文本段
-（`id: context-trimmer-notice`）插到**第一条保留用户消息**的最前面（不新增额外消息）。
-默认配置下、且确有更早消息被丢弃时，插入的完整文本形如：
+Once trimming triggers, the plugin joins the "breadcrumb block" and the "trim
+notice" with a blank line into one synthetic text part (`id:
+context-trimmer-notice`) prepended to the **first retained user message** (no
+extra message is added). With the default config, and when earlier messages were
+actually dropped, the inserted text looks like:
 
 ```text
-[context-trimmer] 以下是更早对话中被裁剪的用户消息摘要（每条已截断，仅供回忆线索）：
-  1. 帮我修复登录页面的报错，点击提交时报 500 …
-  2. 数据库连接池配置在哪个文件里 …
-  3. 把那个函数改成异步的，然后加上重试 …
+[context-trimmer] Summaries of earlier user messages that were trimmed (each truncated, as recall hints only):
+  1. Help me fix the error on the login page — clicking submit returns a 500 …
+  2. Which file holds the database connection pool config …
+  3. Make that function async, then add retries …
 
-[context-trimmer] 较早的上下文已被裁剪，但完整历史仍完整保存，可随时检索。
+[context-trimmer] Earlier context has been trimmed, but the full history is still saved in full and can be searched anytime.
 
-当你需要被裁剪掉的信息时，调用 context_recall 工具即可取回原文：
-  - query：要找的关键词，多个词用空格分隔（大小写不敏感，须全部命中）。
-  - scope：默认 "session"（只查本会话，最快最相关）；本会话查不到用 "project"（查当前项目全部会话，含 subagent 子会话）；仅当用户明确要跨项目查找时才用 "all"（扫本机所有项目，开销较大，不要自行升级）。
+When you need the trimmed-away information, call the context_recall tool to fetch the original text:
+  - query: keywords to search for; space-separated words are AND-matched (case-insensitive).
+  - scope: default "session" (this session only, fastest and most relevant); use "project" if the session has no match (searches every session in the current project, including subagent child sessions); use "all" only when the user explicitly asks to search across projects (scans every project on the machine, which is expensive — don't escalate on your own).
 
-无需人工确认路径或数据库位置——直接调用 context_recall 即可。
+No need to confirm any path or database location — just call context_recall.
 ```
 
-组成与边界情况：
+Composition and edge cases:
 
-- **面包屑块**：一行标题 + 编号列表，每条是被丢弃用户消息的截断文本；最多列出
-  `breadcrumbUserMessages` 条（默认 100），每条截到 `breadcrumbMaxTokens`（默认 100）。
-  仅当有消息被丢弃且 `breadcrumbUserMessages > 0` 时出现。
-- **裁剪提示**：告知模型上下文已被裁剪，以及如何用 `context_recall` 取回。可用 `notice`
-  配置项自定义；设为 `""` 可关闭。
-- 若两者都为空，则不插入任何提示，消息保持原样。
+- **Breadcrumb block**: a one-line heading + a numbered list, each item the
+  truncated text of a dropped user message; it lists at most
+  `breadcrumbUserMessages` items (default 100), each truncated to
+  `breadcrumbMaxTokens` (default 100). It appears only when messages were dropped
+  and `breadcrumbUserMessages > 0`.
+- **Trim notice**: tells the model that context was trimmed and how to fetch it
+  back with `context_recall`. Customizable via the `notice` config option; set it
+  to `""` to disable.
+- If both are empty, no notice is inserted and messages are left untouched.
 
-因为文案恒定，粘性边界稳定时序列化前缀保持逐字节稳定，不会破坏上游 prompt 缓存。
+Because the wording is constant, when the sticky boundary is stable the
+serialized prefix stays byte-for-byte stable and the upstream prompt cache isn't
+broken.
 
-### 缓存感知门控
+### Cache-aware gate
 
-（重新）触发裁剪会重塑前缀、使上游 prompt 缓存失效（缓存通常有约 5 分钟的 TTL）。
-`cacheAwareMinutes` 会推迟触发，直到会话空闲至少这么多分钟——那时缓存本就已过期，
-因此不会付出额外的缓存未命中代价。活跃对话期间裁剪会被推迟；设为 `0` 则命中阈值即裁。
+(Re)triggering a trim reshapes the prefix and invalidates the upstream prompt
+cache (which typically has a ~5-minute TTL). `cacheAwareMinutes` defers the
+trigger until the session has been idle for at least that many minutes — by which
+point the cache has already expired, so no extra cache-miss cost is paid.
+Trimming is deferred during active conversation; set it to `0` to trim as soon as
+the threshold is hit.
 
-#### 硬上限兜底（`hardTriggerTurns`）
+#### Overflow hard cap (`hardTriggerTurns`)
 
-缓存门控有一个风险：**持续高频工作**时，每次请求的间隔都小于 `cacheAwareMinutes`，
-门控会把触发无限期推迟——粘性边界永不前移，保留区每轮增长一轮、无上限累积，
-最终撑爆模型上下文窗口（表现为上游返回 `The request exceeds the model context window`）。
+The cache gate has a risk: during **sustained high-frequency work**, every
+request's gap is shorter than `cacheAwareMinutes`, so the gate defers the trigger
+indefinitely — the sticky boundary never advances, the retained region grows by
+one turn each round without bound, and eventually it blows past the model's
+context window (surfacing as the upstream returning `The request exceeds the
+model context window`).
 
-`hardTriggerTurns` 是防溢出兜底：当活跃轮数超过它时，即便缓存仍"热"也强制前移边界
-（以一次缓存未命中换取避免硬性溢出）。默认 `0` 表示自动取 `threshold * 2`。
+`hardTriggerTurns` is the overflow backstop: when the active turn count exceeds
+it, the boundary is force-advanced even if the cache is still "hot" (trading one
+cache miss for avoiding a hard overflow). The default `0` means auto `threshold *
+2`.
 
-### 会话归属（子 agent 安全）
+### Session attribution (subagent safety)
 
-`experimental.chat.messages.transform` 钩子的入参是空的，拿不到当前会话 id，所以插件
-通过 `chat.params` 把每个会话的模型信息桥接到一个按会话 id 建键的存储里。关键在于：
-transform 触发时**以消息列表里真实的 `info.sessionID` 为准**来定位上下文，而不是用"最近
-一次 `chat.params`"去猜。
+The `experimental.chat.messages.transform` hook receives empty input and can't
+see the current session id, so the plugin bridges each session's model info via
+`chat.params` into a store keyed by session id. The key point: when transform
+fires, it locates the context **by the real `info.sessionID` in the message
+list**, not by guessing from the "most recent `chat.params`".
 
-这一点对 **subagent（子任务）** 至关重要。子 agent 与父会话跑在同一进程里、交错执行：
-子任务运行时会把"最近会话"指针指向子会话；父会话随后接手时，若按"最近会话"去猜，就会
-拿到**子会话**的上下文，导致父会话的粘性边界在错误的 key 下查不到——裁剪静默失效、整段
-未裁剪的历史被原样上送，最终撑爆上下文窗口。改用消息真实 sessionID 定位后，父会话接手
-时总能查到自己的边界，正常裁剪。
+This is critical for **subagents**. A subagent runs in the same process as its
+parent session, interleaved: while the subtask runs it points the "most recent
+session" pointer at the child session; when the parent session then takes over,
+guessing by "most recent session" would hand it the **child's** context, so the
+parent's sticky boundary can't be found under the wrong key — trimming silently
+fails, the entire untrimmed history is sent as-is, and eventually it blows past
+the context window. Locating by the message's real sessionID means the parent
+always finds its own boundary on takeover and trims normally.
 
-## 安装
+## Installation
 
-### 方式一：npm 包（推荐）
+### Option 1: npm package (recommended)
 
-在 opencode 配置文件（`~/.config/opencode/opencode.json` 或项目级 `opencode.json`）
-的 `plugin` 数组里加入包名，opencode 启动时会自动用 Bun 安装：
+Add the package name to the `plugin` array in your opencode config
+(`~/.config/opencode/opencode.json` or a project-level `opencode.json`); opencode
+installs it with Bun automatically at startup:
 
 ```json
 {
@@ -185,37 +237,40 @@ transform 触发时**以消息列表里真实的 `info.sessionID` 为准**来定
 }
 ```
 
-### 方式二：本地文件
+### Option 2: local file
 
-opencode 也会自动发现 `~/.config/opencode/plugin/`（或 `plugins/`）下的插件。
-把插件入口文件**及其目录**一起复制过去：
+opencode also auto-discovers plugins under `~/.config/opencode/plugin/` (or
+`plugins/`). Copy the plugin entry file **and its directory** over together:
 
 ```bash
 mkdir -p ~/.config/opencode/plugin
 cp -R context-trimmer.ts context-trimmer ~/.config/opencode/plugin/
 ```
 
-### 确认已加载
+### Confirm it loaded
 
-重启 opencode，然后查看日志：
+Restart opencode, then check the log:
 
 ```bash
 grep "\[context-trimmer\]" ~/.local/share/opencode/log/opencode.log
 ```
 
-你应能看到一行 `plugin loaded version=…`——借此可确认插件已激活、且跑的是哪个版本
-（升级或重装后用它核对是否真的生效）。每当裁剪一次请求时，还会看到一行
-`trimmed before=… after=…`。
+You should see a `plugin loaded version=…` line — use it to confirm the plugin is
+active and which version is running (after an upgrade or reinstall, check it to
+verify the new build actually took effect). Each time a request is trimmed you'll
+also see a `trimmed before=… after=…` line.
 
-`@opencode-ai/plugin` 与 `@opencode-ai/sdk` 由 opencode 运行时提供——无需手动安装。
+`@opencode-ai/plugin` and `@opencode-ai/sdk` are provided by the opencode
+runtime — no manual install needed.
 
-## 配置
+## Configuration
 
-可选。没有配置文件时使用内置默认值。要自定义，创建：
+Optional. Built-in defaults are used when no config file is present. To
+customize, create:
 
 ```
 $XDG_CONFIG_HOME/opencode/context-trimmer.json
-# 默认：~/.config/opencode/context-trimmer.json
+# default: ~/.config/opencode/context-trimmer.json
 ```
 
 ```json
@@ -231,23 +286,26 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
 }
 ```
 
-| 字段 | 默认值 | 含义 |
+| Field | Default | Meaning |
 |------|--------|------|
-| `enabled` | `true` | 总开关。`false` 时不改动任何请求。 |
-| `threshold` | `20` | 活跃轮数超过此值时（重新）触发裁剪。 |
-| `recentFullTurns` | `5` | 最近完整保留的轮数。 |
-| `priorTrimmedTurns` | `5` | 再往前只保留"用户输入 + 最终输出"的轮数。 |
-| `cacheAwareMinutes` | `5` | 会话空闲达到这么多分钟（缓存已过期）后才（重新）触发。`0` 关闭该门控。 |
-| `hardTriggerTurns` | `0` | 防溢出硬上限：活跃轮数超过它时无视缓存门控强制前移边界。`0` 表示自动取 `threshold * 2`。 |
-| `breadcrumbUserMessages` | `100` | 被丢弃区域中保留为面包屑的最近用户消息条数。`0` 关闭。 |
-| `breadcrumbMaxTokens` | `100` | 每条面包屑最多保留的 token 数（按 ≈3.5 字节/token 换算，在字符边界处截断）。 |
+| `enabled` | `true` | Master switch. When `false`, no request is altered. |
+| `threshold` | `20` | (Re)trigger trimming when the active turn count exceeds this. |
+| `recentFullTurns` | `5` | Number of most recent turns kept in full. |
+| `priorTrimmedTurns` | `5` | Turns before those that keep only "user input + final output". |
+| `cacheAwareMinutes` | `5` | (Re)trigger only after the session has been idle this many minutes (cache already expired). `0` disables the gate. |
+| `hardTriggerTurns` | `0` | Overflow hard cap: when the active turn count exceeds it, force-advance the boundary regardless of the cache gate. `0` means auto `threshold * 2`. |
+| `breadcrumbUserMessages` | `100` | How many of the most recent user messages in the dropped region to keep as breadcrumbs. `0` disables. |
+| `breadcrumbMaxTokens` | `100` | Max tokens kept per breadcrumb (converted at ≈3.5 bytes/token, cut at a character boundary). |
 
-改动在**下一次请求**即生效——无需重启（文件通过 mtime 缓存重新读取）。
-文件缺失或格式错误时回落到默认值；单个非法字段只回落该字段的默认值，不影响其余字段。
+Changes take effect on the **next request** — no restart needed (the file is
+re-read via an mtime cache). A missing or malformed file falls back to defaults;
+a single invalid field falls back to just that field's default without affecting
+the rest.
 
-### 示例：更宽松的裁剪
+### Example: looser trimming
 
-更晚触发、保留更多——适合更看重上下文完整性、不那么在意 token 成本的场景：
+Triggers later and keeps more — suited to cases that value context completeness
+over token cost:
 
 ```json
 {
@@ -259,46 +317,55 @@ $XDG_CONFIG_HOME/opencode/context-trimmer.json
 }
 ```
 
-## 取回被裁剪的历史
+## Fetching back trimmed history
 
-裁剪只重塑*上游请求*——opencode 仍在本地保留完整历史。插件注册了一个
-`context_recall` 工具，让模型可以按需取回被裁掉的内容：
+Trimming only reshapes the *upstream request* — opencode still keeps the full
+history on disk. The plugin registers a `context_recall` tool so the model can
+fetch trimmed-away content on demand:
 
-- `query` —— 关键词；以空格分隔的多个词按"与"匹配（大小写不敏感）。
-- `sessionID` —— 可选。直接指定要查的会话 id（例如上一次结果里 `session=...` 给出的 id）。
-  传了它就**只查这一个会话、忽略 `scope`**，是最省、最精准的定点查法。
-- `scope` —— 未指定 `sessionID` 时生效，三档从窄到宽：
-  - `session`（默认）—— 仅当前会话，最快、最相关。
-  - `project` —— 当前项目的全部会话（含兄弟会话与 subagent 子会话）。
-  - `all` —— 本机**所有项目**的全部会话。可能较慢（无命中时会扫全库），
-    因此仅在你明确要求跨项目查找时才用；模型不会因为窄范围没查到就自行升级到 `all`。
+- `query` — keywords; space-separated words are AND-matched (case-insensitive).
+- `sessionID` — optional. Target exactly this session id (e.g. the id shown as
+  `session=...` in an earlier result). When set, it **searches that one session
+  only and ignores `scope`** — the cheapest, most precise lookup.
+- `scope` — used when `sessionID` is absent; three tiers, narrow to wide:
+  - `session` (default) — the current session only, fastest and most relevant.
+  - `project` — every session in the current project (sibling + subagent child
+    sessions).
+  - `all` — every session across **all projects** on this machine. Can be slow
+    (it scans the whole history when nothing matches), so use it only when you
+    explicitly ask to search across projects; the model won't escalate to `all`
+    on its own just because a narrower scope found nothing.
 
-`scope: all` 有个顺手的用法：有时你记得聊过某个话题，却想不起在哪个项目/会话里——
-明确让模型用 `all` 跨所有项目按关键词检索，就能把那段对话捞回来，不必翻遍历史。
+`scope: all` has a handy use: when you remember discussing a topic but can't
+recall which project/session it was in — explicitly ask the model to search
+across all projects with `all` and it can pull that conversation back without you
+digging through history.
 
-## 扩展
+## Extending
 
-在 `context-trimmer/strategies/` 下新增一个策略文件，实现 `Strategy` 接口
-（`enabled(ctx)` + `apply(messages, ctx)`），并在 `context-trimmer/strategies/index.ts`
-中注册。策略按顺序执行，每个都能看到前一个的输出；抛异常的策略会被跳过（fail-open），
-因此一个有缺陷的策略永远不会破坏请求。
+Add a strategy file under `context-trimmer/strategies/`, implement the `Strategy`
+interface (`enabled(ctx)` + `apply(messages, ctx)`), and register it in
+`context-trimmer/strategies/index.ts`. Strategies run in order, each seeing the
+previous one's output; a strategy that throws is skipped (fail-open), so a buggy
+strategy can never break a request.
 
-## 项目结构
+## Project layout
 
 ```
-context-trimmer.ts              插件入口（钩子 + 工具注册）
+context-trimmer.ts              Plugin entry (hooks + tool registration)
 context-trimmer/
-  config.ts                     全局配置加载器（mtime 缓存、fail-safe）
-  context.ts                    从 chat.params 桥接的每会话模型/provider 信息
-  logger.ts                     基于 client.app.log 的 fail-safe 日志器
-  pipeline.ts                   按顺序运行已启用策略（fail-open）
-  globals.d.ts                  最小 ambient 声明（不引入 @types/node）
+  config.ts                     Global config loader (mtime cache, fail-safe)
+  context.ts                    Per-session model/provider info bridged from chat.params
+  logger.ts                     Fail-safe logger over client.app.log
+  pipeline.ts                   Runs enabled strategies in order (fail-open)
+  globals.d.ts                  Minimal ambient declarations (no @types/node)
   strategies/
-    types.ts                    策略契约
-    index.ts                    策略注册表
-    turn-window.ts              粘性 turn-window 策略
+    types.ts                    Strategy contract
+    index.ts                    Strategy registry
+    turn-window.ts              Sticky turn-window strategy
   tools/
-    recall.ts                   context_recall 工具
+    recall.ts                   context_recall tool
 ```
 
-测试与被测文件放在一起，命名为 `*.test.ts`，用 `bun run <file>.test.ts` 运行。
+Tests live next to the files they cover, named `*.test.ts`, run with `bun run
+<file>.test.ts`.

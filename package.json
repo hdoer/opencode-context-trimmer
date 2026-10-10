@@ -30,6 +30,7 @@
     "context-trimmer.ts",
     "context-trimmer",
     "README.md",
+    "README.zh-CN.md",
     "LICENSE"
   ],
   "peerDependencies": {
