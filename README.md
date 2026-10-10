@@ -1,33 +1,65 @@
-# context-trimmer
+<div align="center">
 
-> **无限上下文** · **零额外费用** · **零额外延时** · **缓存无损**
->
-> 一个 [opencode](https://opencode.ai) 插件：让你在任意长的会话里持续工作，永不撞上上下文窗口上限——
-> 而完整历史始终留在本地，模型随时可按需取回。
+# ⛲ context-trimmer
 
-## 为什么你会想要它
+### 给 [opencode](https://opencode.ai) 装上「无限上下文」
 
-opencode 对模型是**无状态**的：每次请求都把整段历史重新发上去。会话越长，每一轮重复发送的
-token 就越多——几万、几十万，直到某一次请求 `exceeds the model context window`，对话戛然而止。
+任意长会话也不撞上下文窗口上限。完整历史留在本地，模型按需取回。
 
-context-trimmer 在消息发出前重写待发送列表，**只保留真正需要的最近轮次**，把更早的内容折叠或丢弃
-（但完整原文一字不少地留在本地）。于是：
+[![npm](https://img.shields.io/npm/v/opencode-context-trimmer?color=cb3837&logo=npm)](https://www.npmjs.com/package/opencode-context-trimmer)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![opencode plugin](https://img.shields.io/badge/opencode-plugin-000000)](https://opencode.ai/docs/plugins/)
+[![runtime](https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun)](https://bun.sh)
 
-- 🌊 **无限上下文** —— 会话长度不再受窗口上限约束，可以一直聊下去、一直干下去。
-- 💸 **零额外费用** —— 纯消息重写，不调用任何模型做摘要，不产生一分额外 token 开销。
-- ⚡ **零额外延时** —— 没有额外的"压缩请求"往返，裁剪是进程内的同步数组操作，几乎零耗时。
-- 🎯 **缓存无损** —— 裁剪边界是**粘性**的，序列化前缀逐字节稳定，不破坏上游 prompt 缓存。
-- 🔎 **可随时召回** —— 被裁掉的内容通过 `context_recall` 工具按关键词取回，信息永不真正丢失。
+</div>
+
+<table align="center">
+<tr>
+<td align="center">🌊<br/><b>无限上下文</b><br/><sub>会话长度不再受窗口约束</sub></td>
+<td align="center">💸<br/><b>零额外费用</b><br/><sub>不调模型做摘要</sub></td>
+<td align="center">⚡<br/><b>零额外延时</b><br/><sub>进程内同步重写</sub></td>
+<td align="center">🎯<br/><b>缓存无损</b><br/><sub>不破坏 prompt 缓存</sub></td>
+<td align="center">🔎<br/><b>可随时召回</b><br/><sub>信息永不真正丢失</sub></td>
+</tr>
+</table>
+
+---
+
+## 60 秒上手
+
+```jsonc
+// ~/.config/opencode/opencode.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-context-trimmer"]
+}
+```
+
+重启 opencode，完成。默认开箱即用，无需配置。想微调见 [配置](#配置)。
+
+---
+
+## 为什么
+
+opencode 对模型**无状态**：每次请求都重发整段历史。会话越长，重复发送的 token 越多——
+几万、几十万，直到某次请求 `exceeds the model context window`，对话戛然而止。
+
+常见的「压缩/总结」方案要**额外调一次模型**生成摘要：花钱、增延时、还把原文揉成有损概要。
+context-trimmer 走另一条路——**纯消息重写**，发出前就地裁掉冗余轮次，不调模型、不丢原文。
+
+| | 压缩/总结 | **context-trimmer** |
+|---|---|---|
+| 额外 token 费用 | ❌ 每次都调模型 | ✅ 零 |
+| 额外延时 | ❌ 多一轮往返 | ✅ 进程内同步 |
+| 原文保真 | ❌ 有损概要 | ✅ 完整留本地 |
+| prompt 缓存 | ❌ 前缀重写、失效 | ✅ 粘性边界、无损 |
+| 信息找回 | ❌ 无法还原 | ✅ `context_recall` 取回 |
 
 ### 符合「局部性原理」
 
-这套做法的底气来自计算机体系结构里的**局部性原理（Principle of Locality）**：程序对内存的访问
-高度集中在最近用过的一小块区域。对话也一样——模型当前最需要的，几乎总是**最近几轮**的上下文；
-越久远的轮次，被再次引用的概率越低。
-
-于是裁剪恰如 CPU 的多级缓存：**最近轮次**常驻"快表"（完整发送），**较早轮次**降级为摘要，
-**久远轮次**退回"主存"（本地磁盘），需要时再用 `context_recall` 换页取回。用极小的召回成本，
-换来一个看起来"无限大"的上下文。
+模型当前最需要的，几乎总是**最近几轮**；越久远越少被引用。裁剪因此恰如 CPU 多级缓存：
+**最近轮次**常驻快表（完整发送），**较早轮次**降级摘要，**久远轮次**退回主存（本地磁盘），
+需要时再用 `context_recall` 换页取回。用极小的召回成本，换一个看似「无限大」的上下文。
 
 ## 工作原理
 
