@@ -187,6 +187,20 @@ transform 触发时**以消息列表里真实的 `info.sessionID` 为准**来定
 }
 ```
 
+> **一个配置文件里只能有一个 `plugin` 键。** JSON 会静默保留*最后一个*重复键，
+> 所以文件里别处若有多余的 `"plugin": []`，会覆盖这条配置，导致插件永远不加载。
+
+#### 更新 npm 包
+
+opencode 会把 npm 插件缓存在 `~/.cache/opencode/packages/`，每次启动直接复用缓存，
+**不会**再去 npm 检查新版本。升级时清掉缓存并重启，下次启动会重新拉取最新版：
+
+```bash
+rm -rf ~/.cache/opencode/packages/opencode-context-trimmer*
+```
+
+然后在日志里确认版本（见下方「确认已加载」）。
+
 ### 方式二：本地文件
 
 opencode 也会自动发现 `~/.config/opencode/plugin/`（或 `plugins/`）下的插件。
